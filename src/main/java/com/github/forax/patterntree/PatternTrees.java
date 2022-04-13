@@ -70,7 +70,7 @@ public class PatternTrees {
             var parameterPattern = parameterPatterns.get(i);
             var parameterOp = i == recordComponents.length - 1 ? nextComponent : recordComponents[i + 1];
             var parameterTargetType = i == recordComponents.length - 1 ? nextTargetType : recordComponents[i + 1].getType();
-            var parameterSource = i == recordComponents.length - 1? nextSource: this;
+            var parameterSource = i == recordComponents.length - 1 ? nextSource: this;
             node = node.insert(parameterPattern, parameterTargetType, parameterOp, parameterSource);
           }
           yield node;
@@ -220,11 +220,16 @@ public class PatternTrees {
             continue;
           }
           if (sealed) {
-            if (!map.containsKey(null)                                                            // null is in the remainder
-                && (!targetClass.isRecord() || targetClass.getRecordComponents().length == 0)) {  // and no implicit NPE later
-              builder.append("""
-                  requireNonNull(%s);  // null is in remainder
-                  """.formatted(r(varnum)).indent(depth));
+            if (!map.containsKey(null)) {  // null is in the remainder
+              if (type.isRecord() && type.getRecordComponents().length != 0) {
+                builder.append("""
+                    // implicit null check of %s
+                    """.formatted(r(varnum)).indent(depth));
+              } else {
+                builder.append("""
+                    requireNonNull(%s);  // null is a remainder
+                    """.formatted(r(varnum)).indent(depth));
+              }
             }
             builder.append("""
                 %s %s = (%s) %s;    // catch(CCE) -> ICCE
