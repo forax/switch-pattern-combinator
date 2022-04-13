@@ -24,7 +24,7 @@ public class Main {
     //   case Box(B()) -> 2
     //   default -> 3
     // }
-    var root = PatternTrees.createTree("o", Object.class, List.of(
+    var root = PatternTrees.createTree(Object.class, List.of(
         new CasePattern(new NullPattern(), -1),
         new CasePattern(new RecordPattern(Box.class, List.of(new RecordPattern(A.class, List.of(new TypePattern(int.class, "a"), new TypePattern(double.class, "b"))))), 1),
         new CasePattern(new RecordPattern(Box.class, List.of(new RecordPattern(B.class, List.of()))), 2),
@@ -32,19 +32,21 @@ public class Main {
         )
     );
     System.out.println(root);
+    System.out.println(root.toCode());
 
     // I i = ...
     // switch(i) {
     //   case A(int a, int b) -> 1
     //   case B() -> 2
     // }
-    var root2 = PatternTrees.createTree("i", I.class, List.of(
-            new CasePattern(new NullPattern(), -1),
+    var root2 = PatternTrees.createTree(I.class, List.of(
+            //new CasePattern(new NullPattern(), -1),
             new CasePattern(new RecordPattern(A.class, List.of(new TypePattern(int.class, "a"), new TypePattern(double.class, "b"))), 1),
             new CasePattern(new RecordPattern(B.class, List.of()), 2)
         )
     );
-    root2.setExhaustive();
+    root2.seal();
     System.out.println(root2);
+    System.out.println(root2.toCode());
   }
 }

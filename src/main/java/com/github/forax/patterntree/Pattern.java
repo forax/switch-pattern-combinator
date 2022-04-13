@@ -1,6 +1,7 @@
 package com.github.forax.patterntree;
 
 import java.util.List;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
@@ -37,10 +38,15 @@ public sealed interface Pattern {
     }
   }
 
-  record RecordPattern(Class<?> type, List<Pattern> patterns) implements Pattern {
+  record RecordPattern(Class<?> type, List<Pattern> patterns, Optional<String> identifier) implements Pattern {
+    public RecordPattern(Class<?> type, List<Pattern> patterns) {
+      this(type, patterns, Optional.empty());
+    }
+
     public RecordPattern {
       requireNonNull(type);
       patterns = List.copyOf(patterns);
+      requireNonNull(identifier);
     }
   }
 }

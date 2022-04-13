@@ -32,14 +32,14 @@ switch(o) {
 ```
 
 ```java
-requireNonNull(o);
-if o instanceof Box box {
-  Object _1 = box.v();
-  if v instanceof A _2 {
-    int _2 = _3.z();
+requireNonNull(r0);
+if o instanceof Box r1 {
+  Object r2 = box.v();
+  if r2 instanceof A r3 {
+    int r4 = r3.z();
     return call1(...)
   }
-  if v instanceof B _2 {
+  if v instanceof B r3 {
     return call2(...);
   }
 }
@@ -50,31 +50,31 @@ return call3();
 ## Case 2
 
 ```java
-Box<I> box = ...
-switch(box) {
-  case Box<I>(A(int z)) -> 1
-  case Box<I>(B()) -> 2
+I i = ...
+switch(i) {
+  case A(int z) -> 1
+  case B() -> 2
 }
 ```
 
 ```         
--Box b-> (I b.v()) -A a-> (int a.z() *) -int-> 1
-                   -B b-> -> 2
+(Main$I* i)
+    -null-> -1
+    -Main$I$A-> (int x())
+        -int-> (double y())
+            -double-> 1
+    -Main$I$B-> 2
 ```
 
 ```java
-requireNonNull(o);
-if o instanceof Box box {
-  I _1 = (I) box.v();     // CCE
-  if v instanceof A _2 {
-    int z = _2.z();
-    return call1(...)
-  }
-  requireNonNull(v);    // remainder
-  B _2 = (B) _1;        // catch(CCE) -> ICCE
-  return call_2(...);
+requireNonNull(r0);
+if v instanceof A r1 {
+  int r2 = r1.x();
+  int r3 = r1.y();
+  return call1(...)
 }
-return call_3();
+B r1 = (B) r0;        // catch(CCE) -> ICCE
+return call_2(...);;
 ```
 
 
