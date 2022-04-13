@@ -1,83 +1,66 @@
-package com.github.forax.switchpatterncombinator;
+package com.github.forax.patterntree;
 
-import com.github.forax.switchpatterncombinator.Pattern.NullPattern;
-import com.github.forax.switchpatterncombinator.Pattern.ParenthesizedPattern;
-import com.github.forax.switchpatterncombinator.Pattern.RecordPattern;
-import com.github.forax.switchpatterncombinator.Pattern.TypePattern;
-import com.github.forax.switchpatterncombinator.SwitchItem.CasePattern;
+import com.github.forax.patterntree.Pattern.NullPattern;
+import com.github.forax.patterntree.Pattern.ParenthesizedPattern;
+import com.github.forax.patterntree.Pattern.RecordPattern;
+import com.github.forax.patterntree.Pattern.TypePattern;
+import com.github.forax.patterntree.SwitchItem.CasePattern;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.RecordComponent;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
 import static java.util.Objects.requireNonNull;
 
-public class SwitchPatternCombinators {
-  public static void switchPatterns(String name, Type targetType, List<SwitchItem> items) {
+public class PatternTrees {
+  public static Node createTree(String name, Class<?> targetType, List<SwitchItem> items) {
     items = new ArrayList<>(items);
 
-    var root = new Node(erase(targetType), name);
+    var root = new Node(targetType, name);
     for(var item: items) {
       switch (item) {
         case CasePattern casePattern -> root.insert(casePattern.pattern(), null, null).setIndex(casePattern.index());
         default -> throw new AssertionError();
       }
     }
-
-    // print the whole tree
-    System.out.println(root);
+    return root;
   }
 
-  private static Class<?> erase(Type type) {
-    return switch (type) {
-      case null -> null;
-      case Class<?> clazz -> clazz;
-      case ParameterizedType parameterizedType -> erase(parameterizedType.getRawType());
-      default -> throw new AssertionError("unknown type " + type);
-    };
-  }
-
-  private static final class Node {
+  public static final class Node {
     private final Class<?> targetClass;
     private final String op;
     private final LinkedHashMap<Class<?>, Node> map = new LinkedHashMap<>();
+    private boolean exhaustive;
     private int index = -1;
 
-    public Node(Class<?> targetClass, String op) {
+    private Node(Class<?> targetClass, String op) {
       this.targetClass = targetClass;
       this.op = op;
     }
 
-    public Node insert(Pattern pattern, Type nextTargetType, String nextOp) {
+    public Node insert(Pattern pattern, Class<?> nextTargetType, String nextOp) {
       requireNonNull(pattern);
       return switch (pattern) {
-        case NullPattern nullPattern -> map.computeIfAbsent(null, __ -> new Node(erase(nextTargetType), nextOp));
+        case NullPattern nullPattern -> map.computeIfAbsent(null, __ -> new Node(nextTargetType, nextOp));
         case ParenthesizedPattern parenthesizedPattern -> insert(parenthesizedPattern.pattern(), nextTargetType, nextOp);
-        case TypePattern typePattern -> map.computeIfAbsent(erase(typePattern.type()), __ -> new Node(erase(nextTargetType), nextOp));
+        case TypePattern typePattern -> map.computeIfAbsent(typePattern.type(), __ -> new Node(nextTargetType, nextOp));
         case RecordPattern recordPattern -> {
-          var recordClass = erase(recordPattern.type());
+          var recordClass = recordPattern.type();
           if (!recordClass.isRecord()) {
             throw new IllegalStateException("not a record " + recordPattern.type());
           }
           var node = this;
           var recordComponents = recordClass.getRecordComponents();
           var firstParameterOp = recordComponents.length == 0? nextOp: recordComponents[0].getName()+"()";
-          var firstParameterTargetType = recordComponents.length == 0? nextTargetType: recordComponents[0].getGenericType();
-          node = map.computeIfAbsent(recordClass, __ -> new Node(erase(firstParameterTargetType), firstParameterOp));
+          var firstParameterTargetType = recordComponents.length == 0? nextTargetType: recordComponents[0].getType();
+          node = map.computeIfAbsent(recordClass, __ -> new Node(firstParameterTargetType, firstParameterOp));
 
           var parameterPatterns = recordPattern.patterns();
           for (int i = 0; i < recordComponents.length; i++) {
             var parameterPattern = parameterPatterns.get(i);
             var parameterOp = i == recordComponents.length - 1 ? nextOp : recordComponents[i + 1].getName()+"()";
-            var parameterTargetType = i == recordComponents.length - 1 ? nextTargetType : recordComponents[i + 1].getGenericType();
+            var parameterTargetType = i == recordComponents.length - 1 ? nextTargetType : recordComponents[i + 1].getType();
             node = node.insert(parameterPattern, parameterTargetType, parameterOp);
           }
           yield node;
@@ -85,9 +68,16 @@ public class SwitchPatternCombinators {
       };
     }
 
+    public void setExhaustive() {
+      if (exhaustive) {
+        throw new IllegalStateException("exhaustive already set");
+      }
+      exhaustive = true;
+    }
+
     public void setIndex(int index) {
       if (this.index != -1) {
-        throw new IllegalStateException("index set twice");
+        throw new IllegalStateException("index already set");
       }
       this.index = index;
     }
@@ -106,7 +96,9 @@ public class SwitchPatternCombinators {
         builder.append(" ").append(index).append('\n');
         return;
       }
-      builder.append(" (").append(targetClass.getName()).append(' ').append(op).append(")\n");
+      builder.append(" (").append(simpleName(targetClass))
+          .append(exhaustive? "*":"")
+          .append(' ').append(op).append(")\n");
       map.forEach((aClass, node) -> {
         var newBuilder = new StringBuilder();
         newBuilder.append(" ".repeat(depth));
@@ -121,6 +113,17 @@ public class SwitchPatternCombinators {
       var builder = new StringBuilder();
       toBuilder(builder, 4);
       return builder.toString();
+    }
+
+    public Node find(Class<?> ... types) {
+      var node = this;
+      for(var type: types) {
+        node = node.map.get(type);
+        if (node == null) {
+          throw new IllegalArgumentException("no node at " + Arrays.toString(types));
+        }
+      }
+      return node;
     }
   }
 }

@@ -1,9 +1,6 @@
-package com.github.forax.switchpatterncombinator;
+package com.github.forax.patterntree;
 
-import java.lang.reflect.Type;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
@@ -27,7 +24,7 @@ import static java.util.Objects.requireNonNull;
 public sealed interface Pattern {
   record NullPattern() implements Pattern {}
 
-  record TypePattern(Type type, String identifier) implements Pattern {
+  record TypePattern(Class<?> type, String identifier) implements Pattern {
     public TypePattern {
       requireNonNull(type);
       requireNonNull(identifier);
@@ -40,7 +37,7 @@ public sealed interface Pattern {
     }
   }
 
-  record RecordPattern(Type type, List<Pattern> patterns) implements Pattern {
+  record RecordPattern(Class<?> type, List<Pattern> patterns) implements Pattern {
     public RecordPattern {
       requireNonNull(type);
       patterns = List.copyOf(patterns);

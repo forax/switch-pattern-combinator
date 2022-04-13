@@ -1,4 +1,4 @@
-package com.github.forax.switchpatterncombinator;
+package com.github.forax.patterntree;
 
 import static java.util.Objects.requireNonNull;
 
@@ -10,6 +10,4 @@ public sealed interface SwitchItem {
   }
 
   //record CaseValue(Object value, int index) implements SwitchItem {}
-
-  //record Default(int index) implements SwitchItem { }
 }
