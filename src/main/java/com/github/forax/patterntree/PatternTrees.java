@@ -86,7 +86,8 @@ public class PatternTrees {
       }
       var name = clazz.getName();
       var index = name.lastIndexOf('.');
-      return name.substring(index + 1);
+      var index2 = name.lastIndexOf('$');
+      return name.substring(Math.max(index, index2) + 1);
     }
 
     public Node find(Class<?> ... types) {
