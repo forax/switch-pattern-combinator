@@ -64,19 +64,18 @@ public class PatternTreesTest {
 
     @Test
     public void createTree() {
-      // Object o = ...
-      // switch(o) {
+      // I i = ...
+      // switch(i) {
       //   case A(int a, double b) -> 1
       //   case B() -> 2
       //   case C c -> 3
       // }
-      var root = PatternTrees.createTree(Object.class, List.of(
+      var root = PatternTrees.createTree(I.class, List.of(
               new Case(new RecordPattern(I.A.class, List.of(new TypePattern(int.class, "a"), new TypePattern(double.class, "b"))), 1),
               new Case(new RecordPattern(I.B.class, List.of()), 2),
               new Case(new TypePattern(I.C.class, "c"), 3)
           )
       );
-      root.seal();
       assertEquals("""
         if r0 instanceof PatternTreesTest$SealedHierarchy$I$A {
           PatternTreesTest$SealedHierarchy$I$A r1 = (PatternTreesTest$SealedHierarchy$I$A) r0;
@@ -108,19 +107,18 @@ public class PatternTreesTest {
 
     @Test
     public void createTree() {
-      // Object o = ...
-      // switch(o) {
+      // I i = ...
+      // switch(i) {
       //   case C c -> 1
       //   case B() -> 2
       //   case A(int a, double b)  -> 3
       // }
-      var root = PatternTrees.createTree(Object.class, List.of(
+      var root = PatternTrees.createTree(I.class, List.of(
               new Case(new TypePattern(I.C.class, "c"), 1),
               new Case(new RecordPattern(I.B.class, List.of()), 2),
               new Case(new RecordPattern(I.A.class, List.of(new TypePattern(int.class, "a"), new TypePattern(double.class, "b"))), 3)
           )
       );
-      root.seal();
       assertEquals("""
         if r0 instanceof PatternTreesTest$SealedHierarchyRecordAtTheEnd$I$C {
           PatternTreesTest$SealedHierarchyRecordAtTheEnd$I$C r1 = (PatternTreesTest$SealedHierarchyRecordAtTheEnd$I$C) r0;
@@ -167,9 +165,7 @@ public class PatternTreesTest {
           new Case(new RecordPattern(Foo.class, List.of(new TypePattern(I.B.class, "b"), new TypePattern(I.B.class, "b2"))), 4)
           )
       );
-      root.find(Foo.class).seal();
-      root.find(Foo.class, I.A.class).seal();
-      root.find(Foo.class, I.B.class).seal();
+
       assertEquals("""
         PatternTreesTest$SealedAllCombinations$I r1 = r0.i1();
         if r1 instanceof PatternTreesTest$SealedAllCombinations$I$A {
@@ -226,9 +222,8 @@ public class PatternTreesTest {
           new Case(new RecordPattern(Foo.class, List.of(new RecordPattern(I.B.class, List.of(new TypePattern(int.class, "y"))), new RecordPattern(I.B.class, List.of(new TypePattern(int.class, "y2"))))), 4)
           )
       );
-      root.find(Foo.class).seal();
-      root.find(Foo.class, I.A.class, int.class).seal();
-      root.find(Foo.class, I.B.class, int.class).seal();
+
+      System.out.println(Mermaid.toMermaidJS(root));
 
       assertEquals("""
         PatternTreesTest$SealedRecordAllCombinations$I r1 = r0.i1();
@@ -274,11 +269,13 @@ public class PatternTreesTest {
       // Object o = ...
       // switch(o) {
       //   case null -> 1
-      //   case Object o2 -> 2
+      //   case String s -> 2
+      //   case Object o2 -> 3
       // }
       var root = PatternTrees.createTree(Object.class, List.of(
           new Case(new NullPattern(), 1),
-          new Case(new TypePattern(Object.class, "o2"), 2)
+          new Case(new TypePattern(String.class, "s"), 2),
+          new Case(new TypePattern(Object.class, "o2"), 3)
           )
       );
 
@@ -287,7 +284,12 @@ public class PatternTreesTest {
           call 1();
           return;
         }
-        call 2(r0);
+        if r0 instanceof String {
+          String r1 = (String) r0;
+          call 2(r1);
+          return;
+        }
+        call 3(r0);
         return;
         """, root.toCode());
     }

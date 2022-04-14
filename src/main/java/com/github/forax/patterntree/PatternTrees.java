@@ -26,15 +26,14 @@ public class PatternTrees {
   }
 
   public static final class Node {
-    private static final int UNINITIALIZED = Integer.MIN_VALUE;
+    static final int UNINITIALIZED = Integer.MIN_VALUE;
 
-    private final Class<?> targetClass;
-    private final RecordComponent component;
-    private final Node componentSource;
-    private final boolean binding;
-    private final LinkedHashMap<Class<?>, Node> map = new LinkedHashMap<>();
-    private boolean sealed;
-    private int index = UNINITIALIZED;
+    final Class<?> targetClass;
+    final RecordComponent component;
+    final Node componentSource;
+    final boolean binding;
+    final LinkedHashMap<Class<?>, Node> map = new LinkedHashMap<>();
+    int index = UNINITIALIZED;
 
     private Node(Class<?> targetClass, RecordComponent component, Node componentSource, boolean binding) {
       this.targetClass = targetClass;
@@ -74,13 +73,6 @@ public class PatternTrees {
       };
     }
 
-    public void seal() {
-      if (sealed) {
-        throw new IllegalStateException("sealed already set");
-      }
-      sealed = true;
-    }
-
     public void setIndex(int index) {
       if (this.index != UNINITIALIZED) {
         throw new IllegalStateException("index already set");
@@ -95,34 +87,6 @@ public class PatternTrees {
       var name = clazz.getName();
       var index = name.lastIndexOf('.');
       return name.substring(index + 1);
-    }
-
-    private void toBuilder(StringBuilder builder, int depth) {
-      if (binding) {
-        builder.append(" $");
-      }
-      if (targetClass == null) {
-        builder.append(" ").append(index).append('\n');
-        return;
-      }
-      builder.append(" (").append(simpleName(targetClass))
-          .append(sealed ? "*":"")
-          .append(component == null? "": " " + component.getName() + "()")
-          .append(")\n");
-      map.forEach((aClass, node) -> {
-        var newBuilder = new StringBuilder();
-        newBuilder.append(" ".repeat(depth));
-        newBuilder.append("-").append(simpleName(aClass)).append("->");
-        node.toBuilder(newBuilder, depth + 4);
-        builder.append(newBuilder);
-      });
-    }
-
-    @Override
-    public String toString() {
-      var builder = new StringBuilder();
-      toBuilder(builder, 4);
-      return builder.toString();
     }
 
     public Node find(Class<?> ... types) {
@@ -169,7 +133,6 @@ public class PatternTrees {
         bindings = append(bindings, r(varnum));
       }
 
-      // call
       if (index != UNINITIALIZED) {
         builder.append("""
           call %d(%s);
@@ -200,6 +163,7 @@ public class PatternTrees {
           continue;
         }
 
+        var sealed = targetClass.isSealed();
         var typename = simpleName(type);
         if (i == transitions.size() - 1) { // last node
           if (type == targetClass) {
