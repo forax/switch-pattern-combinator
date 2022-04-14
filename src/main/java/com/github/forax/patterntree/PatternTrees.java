@@ -135,8 +135,7 @@ public class PatternTrees {
 
       if (index != UNINITIALIZED) {
         builder.append("""
-          call %d(%s);
-          return;
+          return call %d(%s);
           """.formatted(index, String.join(", ", bindings)).indent(depth));
         return;
       }

@@ -42,15 +42,12 @@ public class PatternTreesTest {
             Object r5 = r1.o2();
             if r5 instanceof Integer {
               Integer r6 = (Integer) r5;
-              call 1(r4, r6);
-              return;
+              return call 1(r4, r6);
             }
-            call 2(r4, r5);
-            return;
+            return call 2(r4, r5);
           }
         }
-        call 3(r0);
-        return;
+        return call 3(r0);
         """, root.toCode());
     }
   }
@@ -83,18 +80,15 @@ public class PatternTreesTest {
           A r1 = (A) r0;
           int r2 = r1.x();
           double r3 = r1.y();
-          call 1(r2, r3);
-          return;
+          return call 1(r2, r3);
         }
         if r0 instanceof B {
           B r1 = (B) r0;
-          call 2();
-          return;
+          return call 2();
         }
         requireNonNull(r0);  // null is a remainder
         C r1 = (C) r0;    // catch(CCE) -> ICCE
-        call 3(r1);
-        return;
+        return call 3(r1);
         """, root.toCode());
     }
   }
@@ -125,20 +119,17 @@ public class PatternTreesTest {
       assertEquals("""
         if r0 instanceof C {
           C r1 = (C) r0;
-          call 1(r1);
-          return;
+          return call 1(r1);
         }
         if r0 instanceof B {
           B r1 = (B) r0;
-          call 2();
-          return;
+          return call 2();
         }
         // implicit null check of r0
         A r1 = (A) r0;    // catch(CCE) -> ICCE
         int r2 = r1.x();
         double r3 = r1.y();
-        call 3(r2, r3);
-        return;
+        return call 3(r2, r3);
         """, root.toCode());
     }
   }
@@ -175,26 +166,22 @@ public class PatternTreesTest {
           I r3 = r0.i2();
           if r3 instanceof A {
             A r4 = (A) r3;
-            call 1(r2, r4);
-            return;
+            return call 1(r2, r4);
           }
           requireNonNull(r3);  // null is a remainder
           B r4 = (B) r3;    // catch(CCE) -> ICCE
-          call 2(r2, r4);
-          return;
+          return call 2(r2, r4);
         }
         requireNonNull(r1);  // null is a remainder
         B r2 = (B) r1;    // catch(CCE) -> ICCE
         I r3 = r0.i2();
         if r3 instanceof A {
           A r4 = (A) r3;
-          call 3(r2, r4);
-          return;
+          return call 3(r2, r4);
         }
         requireNonNull(r3);  // null is a remainder
         B r4 = (B) r3;    // catch(CCE) -> ICCE
-        call 4(r2, r4);
-        return;
+        return call 4(r2, r4);
         """, root.toCode());
     }
   }
@@ -233,14 +220,12 @@ public class PatternTreesTest {
           if r4 instanceof A {
             A r5 = (A) r4;
             int r6 = r5.x();
-            call 1(r3, r6);
-            return;
+            return call 1(r3, r6);
           }
           // implicit null check of r4
           B r5 = (B) r4;    // catch(CCE) -> ICCE
           int r6 = r5.y();
-          call 2(r3, r6);
-          return;
+          return call 2(r3, r6);
         }
         // implicit null check of r1
         B r2 = (B) r1;    // catch(CCE) -> ICCE
@@ -249,14 +234,12 @@ public class PatternTreesTest {
         if r4 instanceof A {
           A r5 = (A) r4;
           int r6 = r5.x();
-          call 3(r3, r6);
-          return;
+          return call 3(r3, r6);
         }
         // implicit null check of r4
         B r5 = (B) r4;    // catch(CCE) -> ICCE
         int r6 = r5.y();
-        call 4(r3, r6);
-        return;
+        return call 4(r3, r6);
         """, root.toCode());
     }
   }
@@ -280,16 +263,13 @@ public class PatternTreesTest {
 
       assertEquals("""
         if r0 == null {
-          call 1();
-          return;
+          return call 1();
         }
         if r0 instanceof String {
           String r1 = (String) r0;
-          call 2(r1);
-          return;
+          return call 2(r1);
         }
-        call 3(r0);
-        return;
+        return call 3(r0);
         """, root.toCode());
     }
   }
@@ -320,19 +300,15 @@ public class PatternTreesTest {
           Foo r1 = (Foo) r0;
           Object r2 = r1.o();
           if r2 == null {
-            call 1();
-            return;
+            return call 1();
           }
           if r2 instanceof String {
             String r3 = (String) r2;
-            call 2(r3);
-            return;
+            return call 2(r3);
           }
-          call 3(r2);
-          return;
+          return call 3(r2);
         }
-        call 4(r0);
-        return;
+        return call 4(r0);
         """, root.toCode());
     }
   }
