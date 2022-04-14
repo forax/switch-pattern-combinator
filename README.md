@@ -54,8 +54,8 @@ Algorithm in pseudo-code
 
   def insert(node: Node, pattern: Pattern, targetType: Class, componentPair: Tuple(RecordComponent, Node)) -> Node:
     return switch(pattern):
-      case NullPattern: return node.dict[null] = Node(targetType, componentPair, false)
-      case ParenthesizedPattern(p) : return insert(p, targetType, componentPair)
+      case NullPattern(): return node.dict[null] = Node(targetType, componentPair, false)
+      case ParenthesizedPattern(p): return insert(p, targetType, componentPair)
       case TypePattern(type, _): return node.dict[type] = Node(targetType, componentPair, true)
       case RecordPattern(type, patterns, identifier):
         var components = type.recordComponents
