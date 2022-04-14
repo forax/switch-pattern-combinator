@@ -53,12 +53,11 @@ public class PatternTrees {
           if (!recordClass.isRecord()) {
             throw new IllegalStateException("not a record " + recordPattern.type());
           }
-          var node = this;
           var recordComponents = recordClass.getRecordComponents();
           var firstParameterOp = recordComponents.length == 0? nextComponent: recordComponents[0];
           var firstParameterTargetType = recordComponents.length == 0? nextTargetType: recordComponents[0].getType();
           var firstSource = recordComponents.length == 0? nextSource: this;
-          node = map.computeIfAbsent(recordClass, __ -> new Node(firstParameterTargetType, firstParameterOp, firstSource, recordPattern.identifier().isPresent()));
+          var node = map.computeIfAbsent(recordClass, __ -> new Node(firstParameterTargetType, firstParameterOp, firstSource, recordPattern.identifier().isPresent()));
 
           var parameterPatterns = recordPattern.patterns();
           for (int i = 0; i < recordComponents.length; i++) {
