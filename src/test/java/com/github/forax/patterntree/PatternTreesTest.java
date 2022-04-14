@@ -31,12 +31,13 @@ public class PatternTreesTest {
               new Case(new TypePattern(Object.class, "o3"), 3)
           )
       );
+
       assertEquals("""
-        if r0 instanceof PatternTreesTest$ShareALot$Foo {
-          PatternTreesTest$ShareALot$Foo r1 = (PatternTreesTest$ShareALot$Foo) r0;
+        if r0 instanceof Foo {
+          Foo r1 = (Foo) r0;
           Object r2 = r1.o();
-          if r2 instanceof PatternTreesTest$ShareALot$Bar {
-            PatternTreesTest$ShareALot$Bar r3 = (PatternTreesTest$ShareALot$Bar) r2;
+          if r2 instanceof Bar {
+            Bar r3 = (Bar) r2;
             int r4 = r3.x();
             Object r5 = r1.o2();
             if r5 instanceof Integer {
@@ -76,21 +77,22 @@ public class PatternTreesTest {
               new Case(new TypePattern(I.C.class, "c"), 3)
           )
       );
+
       assertEquals("""
-        if r0 instanceof PatternTreesTest$SealedHierarchy$I$A {
-          PatternTreesTest$SealedHierarchy$I$A r1 = (PatternTreesTest$SealedHierarchy$I$A) r0;
+        if r0 instanceof A {
+          A r1 = (A) r0;
           int r2 = r1.x();
           double r3 = r1.y();
           call 1(r2, r3);
           return;
         }
-        if r0 instanceof PatternTreesTest$SealedHierarchy$I$B {
-          PatternTreesTest$SealedHierarchy$I$B r1 = (PatternTreesTest$SealedHierarchy$I$B) r0;
+        if r0 instanceof B {
+          B r1 = (B) r0;
           call 2();
           return;
         }
         requireNonNull(r0);  // null is a remainder
-        PatternTreesTest$SealedHierarchy$I$C r1 = (PatternTreesTest$SealedHierarchy$I$C) r0;    // catch(CCE) -> ICCE
+        C r1 = (C) r0;    // catch(CCE) -> ICCE
         call 3(r1);
         return;
         """, root.toCode());
@@ -119,19 +121,20 @@ public class PatternTreesTest {
               new Case(new RecordPattern(I.A.class, List.of(new TypePattern(int.class, "a"), new TypePattern(double.class, "b"))), 3)
           )
       );
+
       assertEquals("""
-        if r0 instanceof PatternTreesTest$SealedHierarchyRecordAtTheEnd$I$C {
-          PatternTreesTest$SealedHierarchyRecordAtTheEnd$I$C r1 = (PatternTreesTest$SealedHierarchyRecordAtTheEnd$I$C) r0;
+        if r0 instanceof C {
+          C r1 = (C) r0;
           call 1(r1);
           return;
         }
-        if r0 instanceof PatternTreesTest$SealedHierarchyRecordAtTheEnd$I$B {
-          PatternTreesTest$SealedHierarchyRecordAtTheEnd$I$B r1 = (PatternTreesTest$SealedHierarchyRecordAtTheEnd$I$B) r0;
+        if r0 instanceof B {
+          B r1 = (B) r0;
           call 2();
           return;
         }
         // implicit null check of r0
-        PatternTreesTest$SealedHierarchyRecordAtTheEnd$I$A r1 = (PatternTreesTest$SealedHierarchyRecordAtTheEnd$I$A) r0;    // catch(CCE) -> ICCE
+        A r1 = (A) r0;    // catch(CCE) -> ICCE
         int r2 = r1.x();
         double r3 = r1.y();
         call 3(r2, r3);
@@ -146,7 +149,6 @@ public class PatternTreesTest {
       final class A implements I {}
       final class B implements I {}
     }
-
     record Foo(I i1, I i2) {}
 
     @Test
@@ -167,30 +169,30 @@ public class PatternTreesTest {
       );
 
       assertEquals("""
-        PatternTreesTest$SealedAllCombinations$I r1 = r0.i1();
-        if r1 instanceof PatternTreesTest$SealedAllCombinations$I$A {
-          PatternTreesTest$SealedAllCombinations$I$A r2 = (PatternTreesTest$SealedAllCombinations$I$A) r1;
-          PatternTreesTest$SealedAllCombinations$I r3 = r0.i2();
-          if r3 instanceof PatternTreesTest$SealedAllCombinations$I$A {
-            PatternTreesTest$SealedAllCombinations$I$A r4 = (PatternTreesTest$SealedAllCombinations$I$A) r3;
+        I r1 = r0.i1();
+        if r1 instanceof A {
+          A r2 = (A) r1;
+          I r3 = r0.i2();
+          if r3 instanceof A {
+            A r4 = (A) r3;
             call 1(r2, r4);
             return;
           }
           requireNonNull(r3);  // null is a remainder
-          PatternTreesTest$SealedAllCombinations$I$B r4 = (PatternTreesTest$SealedAllCombinations$I$B) r3;    // catch(CCE) -> ICCE
+          B r4 = (B) r3;    // catch(CCE) -> ICCE
           call 2(r2, r4);
           return;
         }
         requireNonNull(r1);  // null is a remainder
-        PatternTreesTest$SealedAllCombinations$I$B r2 = (PatternTreesTest$SealedAllCombinations$I$B) r1;    // catch(CCE) -> ICCE
-        PatternTreesTest$SealedAllCombinations$I r3 = r0.i2();
-        if r3 instanceof PatternTreesTest$SealedAllCombinations$I$A {
-          PatternTreesTest$SealedAllCombinations$I$A r4 = (PatternTreesTest$SealedAllCombinations$I$A) r3;
+        B r2 = (B) r1;    // catch(CCE) -> ICCE
+        I r3 = r0.i2();
+        if r3 instanceof A {
+          A r4 = (A) r3;
           call 3(r2, r4);
           return;
         }
         requireNonNull(r3);  // null is a remainder
-        PatternTreesTest$SealedAllCombinations$I$B r4 = (PatternTreesTest$SealedAllCombinations$I$B) r3;    // catch(CCE) -> ICCE
+        B r4 = (B) r3;    // catch(CCE) -> ICCE
         call 4(r2, r4);
         return;
         """, root.toCode());
@@ -203,7 +205,6 @@ public class PatternTreesTest {
       record A(int x) implements I {}
       record B(int y) implements I {}
     }
-
     record Foo(I i1, I i2) {}
 
     @Test
@@ -223,38 +224,36 @@ public class PatternTreesTest {
           )
       );
 
-      System.out.println(Mermaid.toMermaidJS(root));
-
       assertEquals("""
-        PatternTreesTest$SealedRecordAllCombinations$I r1 = r0.i1();
-        if r1 instanceof PatternTreesTest$SealedRecordAllCombinations$I$A {
-          PatternTreesTest$SealedRecordAllCombinations$I$A r2 = (PatternTreesTest$SealedRecordAllCombinations$I$A) r1;
+        I r1 = r0.i1();
+        if r1 instanceof A {
+          A r2 = (A) r1;
           int r3 = r2.x();
-          PatternTreesTest$SealedRecordAllCombinations$I r4 = r0.i2();
-          if r4 instanceof PatternTreesTest$SealedRecordAllCombinations$I$A {
-            PatternTreesTest$SealedRecordAllCombinations$I$A r5 = (PatternTreesTest$SealedRecordAllCombinations$I$A) r4;
+          I r4 = r0.i2();
+          if r4 instanceof A {
+            A r5 = (A) r4;
             int r6 = r5.x();
             call 1(r3, r6);
             return;
           }
           // implicit null check of r4
-          PatternTreesTest$SealedRecordAllCombinations$I$B r5 = (PatternTreesTest$SealedRecordAllCombinations$I$B) r4;    // catch(CCE) -> ICCE
+          B r5 = (B) r4;    // catch(CCE) -> ICCE
           int r6 = r5.y();
           call 2(r3, r6);
           return;
         }
         // implicit null check of r1
-        PatternTreesTest$SealedRecordAllCombinations$I$B r2 = (PatternTreesTest$SealedRecordAllCombinations$I$B) r1;    // catch(CCE) -> ICCE
+        B r2 = (B) r1;    // catch(CCE) -> ICCE
         int r3 = r2.y();
-        PatternTreesTest$SealedRecordAllCombinations$I r4 = r0.i2();
-        if r4 instanceof PatternTreesTest$SealedRecordAllCombinations$I$A {
-          PatternTreesTest$SealedRecordAllCombinations$I$A r5 = (PatternTreesTest$SealedRecordAllCombinations$I$A) r4;
+        I r4 = r0.i2();
+        if r4 instanceof A {
+          A r5 = (A) r4;
           int r6 = r5.x();
           call 3(r3, r6);
           return;
         }
         // implicit null check of r4
-        PatternTreesTest$SealedRecordAllCombinations$I$B r5 = (PatternTreesTest$SealedRecordAllCombinations$I$B) r4;    // catch(CCE) -> ICCE
+        B r5 = (B) r4;    // catch(CCE) -> ICCE
         int r6 = r5.y();
         call 4(r3, r6);
         return;
@@ -317,8 +316,8 @@ public class PatternTreesTest {
       );
 
       assertEquals("""
-        if r0 instanceof PatternTreesTest$RecordWithNull$Foo {
-          PatternTreesTest$RecordWithNull$Foo r1 = (PatternTreesTest$RecordWithNull$Foo) r0;
+        if r0 instanceof Foo {
+          Foo r1 = (Foo) r0;
           Object r2 = r1.o();
           if r2 == null {
             call 1();
