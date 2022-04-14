@@ -18,8 +18,6 @@ unsafe cast can be done before entering the switch).
 
 ### Patterns
 
-
-
 ```
 Pattern = NullPattern()
         | TypePattern(type: Class, identifier: String)
