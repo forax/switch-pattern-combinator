@@ -48,100 +48,100 @@ both explicit checks and supplementary branch if possible.
 Algorithm in pseudo-code
 
 ```python
-  class Node(targetClass: Class, componentPair: Tuple(RecordComponent, Node), binding: boolean)
-    dict: Dict<Class, Node>
-    index: int or not initialized
+class Node(targetClass: Class, componentPair: Tuple(RecordComponent, Node), binding: boolean)
+  dict: Dict<Class, Node>
+  index: int or not initialized
 
-  def insert(node: Node, pattern: Pattern, targetType: Class, componentPair: Tuple(RecordComponent, Node)) -> Node:
-    return switch(pattern):
-      case NullPattern(): return node.dict[null] = Node(targetType, componentPair, false)
-      case ParenthesizedPattern(p): return insert(p, targetType, componentPair)
-      case TypePattern(type, _): return node.dict[type] = Node(targetType, componentPair, true)
-      case RecordPattern(type, patterns, identifier):
-        var components = type.recordComponents
+def insert(node: Node, pattern: Pattern, targetType: Class, componentPair: Tuple(RecordComponent, Node)) -> Node:
+  return switch(pattern):
+    case NullPattern(): return node.dict[null] = Node(targetType, componentPair, false)
+    case ParenthesizedPattern(p): return insert(p, targetType, componentPair)
+    case TypePattern(type, _): return node.dict[type] = Node(targetType, componentPair, true)
+    case RecordPattern(type, patterns, identifier):
+      var components = type.recordComponents
+      
+      # first node
+      if components is empty:
+        return node.dict[type] = Node(targetType, componentPair, identifier.isPresent)
+      var n = node.dict[type] = Node(components[0].type, (components[0], node), identifier.isPresent)
+      
+      # one node per record components
+      for index = 0 .. components.length - 1:
+        n = n.dict[p.type] = insert(patterns[index], components[index + 1].type, (components[index + 1], node))
         
-        # first node
-        if components is empty:
-          return node.dict[type] = Node(targetType, componentPair, identifier.isPresent)
-        var n = node.dict[type] = Node(components[0].type, (components[0], node), identifier.isPresent)
-        
-        # one node per record components
-        for index = 0 .. components.length - 1:
-          n = n.dict[p.type] = insert(patterns[index], components[index + 1].type, (components[index + 1], node))
-          
-        # last node
-        return n.dict[p.type] = insert(patterns[last], targetType, componentPair)
+      # last node
+      return n.dict[p.type] = insert(patterns[last], targetType, componentPair)
 
 ```
 
 
 ```python
-  class Case(pattern: Pattern, index: int)
+class Case(pattern: Pattern, index: int)
+
+def Node createTree(targetType: Class, cases: List<Case>) -> Node:
+  var root = Node(targetType, (null, null), false);
+  for each case in cases:
+    insert(root, case.pattern, null, null, null).index = case.index
   
-  def Node createTree(targetType: Class, cases: List<Case>) -> Node:
-    var root = Node(targetType, (null, null), false);
-    for each case in cases:
-      insert(root, case.pattern, null, null, null).index = case.index
-    
-    return root;
-  }      
+  return root;
+}      
 ```
 
 ## How to generate the code from the Decision Tree
 
 ```python
-  def toCode(node: Node, varnum: int, scope: Dict<Node, int>, bindings: List<String>):
-    if node.binding:
-      bindings = bindings.append(r(varnum));
+def toCode(node: Node, varnum: int, scope: Dict<Node, int>, bindings: List<String>):
+  if node.binding:
+    bindings = bindings.append(r(varnum));
 
-    # node with an index
-    if node.index is initialized:
-      append("return call %d(%s);" % index, bindings.join(", "))
-      return
+  # node with an index
+  if node.index is initialized:
+    append("return call %d(%s);" % index, bindings.join(", "))
+    return
 
-    # extract record component value from the back reference 
-    if component != null:
-      var input = scope[node.componentPair.node]
-      append("%s %s = %s.%s();" % component.type, r(varnum + 1), r(input), component.name)
-      varnum++;
+  # extract record component value from the back reference 
+  if component != null:
+    var input = scope[node.componentPair.node]
+    append("%s %s = %s.%s();" % component.type, r(varnum + 1), r(input), component.name)
+    varnum++;
 
-    for each transition(type, nextNode) in dict:
-      # type is null, do a nullcheck
-      if type == null:
-        append("if %s == null {" % r(varnum))
-        toCode(nextNode, varnum, scope, bindings)
-        append("}\n")
-        continue
-
-      # the code is different for the last transition
-      if last transition:
-        if type == node.targetClass:
-          # types are the same, no instanceof needed
-          scope[this] = varnum
-          toCode(nextNode, varnum, scope, bindings)
-          continue
-          
-        if node.targetClass.isSealed:
-          # type is sealed, if null is not handled, generate either an implicit or an explicit NPE
-          if node.dict does not contains null:  // null is in the remainder
-            if type.isRecord and type.recordComponents.length != 0:
-              append("// implicit null check of %s" % r(varnum))
-            else:
-              append("requireNonNull(%s);" % r(varnum))
-          
-          # generate a cast that fails if there is more subtypes than at compile time  
-          append("%s %s = (%s) %s;    // catch(CCE) -> ICCE" % typename, r(varnum + 1), typename, r(varnum))
-          scope[this] = varnum + 1
-          toCode(nextNode, varnum + 1, scope, bindings)
-          continue
-          
-      
-      # otherwise generate an instanceof  
-      append("if %s instanceof %s {
-              %s %s = (%s) %s;" % r(varnum), typename, typename, r(varnum + 1), typename, r(varnum))
-      scope[this] = varnum + 1
-      toCode(nextNode, varnum + 1, scope, bindings)
+  for each transition(type, nextNode) in dict:
+    # type is null, do a nullcheck
+    if type == null:
+      append("if %s == null {" % r(varnum))
+      toCode(nextNode, varnum, scope, bindings)
       append("}\n")
+      continue
+
+    # the code is different for the last transition
+    if last transition:
+      if type == node.targetClass:
+        # types are the same, no instanceof needed
+        scope[this] = varnum
+        toCode(nextNode, varnum, scope, bindings)
+        continue
+        
+      if node.targetClass.isSealed:
+        # type is sealed, if null is not handled, generate either an implicit or an explicit NPE
+        if node.dict does not contains null:  // null is in the remainder
+          if type.isRecord and type.recordComponents.length != 0:
+            append("// implicit null check of %s" % r(varnum))
+          else:
+            append("requireNonNull(%s);" % r(varnum))
+        
+        # generate a cast that fails if there is more subtypes than at compile time  
+        append("%s %s = (%s) %s;    // catch(CCE) -> ICCE" % typename, r(varnum + 1), typename, r(varnum))
+        scope[this] = varnum + 1
+        toCode(nextNode, varnum + 1, scope, bindings)
+        continue
+        
+    
+    # otherwise generate an instanceof  
+    append("if %s instanceof %s {
+            %s %s = (%s) %s;" % r(varnum), typename, typename, r(varnum + 1), typename, r(varnum))
+    scope[this] = varnum + 1
+    toCode(nextNode, varnum + 1, scope, bindings)
+    append("}\n")
 ```
 
 ### Issues
