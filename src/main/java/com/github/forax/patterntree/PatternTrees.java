@@ -4,7 +4,6 @@ import com.github.forax.patterntree.Pattern.NullPattern;
 import com.github.forax.patterntree.Pattern.ParenthesizedPattern;
 import com.github.forax.patterntree.Pattern.RecordPattern;
 import com.github.forax.patterntree.Pattern.TypePattern;
-import com.github.forax.patterntree.SwitchItem.CasePattern;
 
 import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
@@ -16,15 +15,12 @@ import java.util.List;
 import static java.util.Objects.requireNonNull;
 
 public class PatternTrees {
-  public static Node createTree(Class<?> targetType, List<SwitchItem> items) {
+  public static Node createTree(Class<?> targetType, List<Case> items) {
     items = new ArrayList<>(items);
 
     var root = new Node(targetType, null, null, false);
     for(var item: items) {
-      switch (item) {
-        case CasePattern casePattern -> root.insert(casePattern.pattern(), null, null, null).setIndex(casePattern.index());
-        default -> throw new AssertionError();
-      }
+      root.insert(item.pattern(), null, null, null).setIndex(item.index());
     }
     return root;
   }
@@ -196,11 +192,10 @@ public class PatternTrees {
         var type = entry.getKey();
         var nextNode = entry.getValue();
         if (type == null) {
-          builder.append(" ".repeat(depth));
           if (nextNode.index == -1) {
             builder.append("""
-              requireNonNull(%s);
-              """.formatted(r(varnum)).indent(depth));
+                requireNonNull(%s);
+                """.formatted(r(varnum)).indent(depth));
           } else {
             builder.append("""
                 if %s == null {
