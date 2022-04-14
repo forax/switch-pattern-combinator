@@ -314,8 +314,6 @@ public class PatternTreesTest {
           )
       );
 
-      System.out.println(root);
-
       assertEquals("""
         if r0 instanceof PatternTreesTest$RecordWithNull$Foo {
           PatternTreesTest$RecordWithNull$Foo r1 = (PatternTreesTest$RecordWithNull$Foo) r0;

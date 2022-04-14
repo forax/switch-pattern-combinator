@@ -26,7 +26,7 @@ public class PatternTrees {
   }
 
   public static final class Node {
-    private static final int UNINITIALIZED = -2;
+    private static final int UNINITIALIZED = Integer.MIN_VALUE;
 
     private final Class<?> targetClass;
     private final RecordComponent component;
@@ -192,21 +192,15 @@ public class PatternTrees {
         var type = entry.getKey();
         var nextNode = entry.getValue();
         if (type == null) {
-          if (nextNode.index == -1) {
-            builder.append("""
-                requireNonNull(%s);
-                """.formatted(r(varnum)).indent(depth));
-          } else {
-            builder.append("""
-                if %s == null {
-                """.formatted(r(varnum)).indent(depth));
-            nextNode.toCode(builder, depth + 2, varnum, scope, bindings);
-            builder.append("}\n".indent(depth));
-          }
+          builder.append("""
+              if %s == null {
+              """.formatted(r(varnum)).indent(depth));
+          nextNode.toCode(builder, depth + 2, varnum, scope, bindings);
+          builder.append("}\n".indent(depth));
           continue;
         }
-        var typename = simpleName(type);
 
+        var typename = simpleName(type);
         if (i == transitions.size() - 1) { // last node
           if (type == targetClass) {
             // do nothing
