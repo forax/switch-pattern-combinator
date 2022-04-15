@@ -312,4 +312,72 @@ public class PatternTreesTest {
         """, root.toCode());
     }
   }
+
+  @Nested
+  class ShareTypePatternAndRecordPatternOnTheSameNode {
+    record Foo(Object o) {}
+
+    @Test
+    public void createTree() {
+      // Foo foo = ...
+      // switch(foo) {
+      //   case Foo(String s) -> 1
+      //   case Foo foo2 -> 2
+      // }
+      var root = PatternTrees.createTree(Foo.class, List.of(
+              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(String.class, "s"))), 1),
+              new Case(new TypePattern(Foo.class, "foo2"), 2)
+          )
+      );
+
+      System.out.println(Mermaid.toMermaidJS(root));
+
+      assertEquals("""
+        if r0 != null {
+          Object r1 = r0.o();
+          if r1 instanceof String {
+            String r2 = (String) r1;
+            return call 1(r2);
+          }
+        }
+        return call 2(r1);
+        """, root.toCode());
+    }
+  }
+
+  @Nested
+  class ShareTypePatternAndRecordPatternOnTheSameNode2 {
+    record Foo(Object o) {}
+
+    @Test
+    public void createTree() {
+      // Object o = ...
+      // switch(o) {
+      //   case Foo(String s) -> 1
+      //   case Foo foo -> 2
+      //   case Object o2 -> 3
+      // }
+      var root = PatternTrees.createTree(Object.class, List.of(
+              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(String.class, "s"))), 1),
+              new Case(new TypePattern(Foo.class, "foo"), 2),
+              new Case(new TypePattern(Object.class, "o2"), 3)
+          )
+      );
+
+      System.out.println(Mermaid.toMermaidJS(root));
+
+      assertEquals("""
+        if r0 instanceof Foo {
+          Foo r1 = (Foo) r0;
+          Object r2 = r1.o();
+          if r2 instanceof String {
+            String r3 = (String) r2;
+            return call 1(r3);
+          }
+          return call 2(r2);
+        }
+        return call 3(r0);
+        """, root.toCode());
+    }
+  }
 }

@@ -44,6 +44,15 @@ all based on the same idea, we are generating the bytecode so all the possible p
 both explicit checks and supplementary branch if possible.
 
 ## How to construct the Decision Tree
+// TODO
+
+4 kind of nodes
+- the initial node (input, target class, no component)
+- an intermediary node (input, target class, component)
+- an end node (input, no target class, index)
+- a node which both an intermediary and an end node (input, target class, component, index) 
+
+
 
 Algorithm in pseudo-code
 

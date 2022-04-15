@@ -55,17 +55,24 @@ public class Mermaid {
           """.formatted(id, style));
     }
 
-    if (node.index != Node.UNINITIALIZED) {
-      builder.append("""
-              id%d[index %d]
-            """.formatted(id, node.index));
-      return;
-    }
+    var text = Stream.of("")
+        .<String>mapMulti((__, consumer) -> {
+          if (node.targetClass != null) {
+            consumer.accept(simpleName(node.targetClass));
+          }
+          if (node.index != Node.UNINITIALIZED) {
+            consumer.accept("index " + node.index);
+          }
+        })
+        .collect(joining(", "));
 
-    var text =  simpleName(node.targetClass);
     builder.append("""
               id%d(%s)
             """.formatted(id, text));
+
+    if (node.targetClass == null) {
+      return;
+    }
 
     if (node.componentSource != null && node.component != null) {
       var sourceId = env.id(node.componentSource);
