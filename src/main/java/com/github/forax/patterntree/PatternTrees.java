@@ -50,21 +50,16 @@ public class PatternTrees {
         case TypePattern typePattern -> map.computeIfAbsent(typePattern.type(), __ -> new Node(nextTargetType, nextComponent, nextSource, true));
         case RecordPattern recordPattern -> {
           var type = recordPattern.type();
-          var recordComponents = type.getRecordComponents();
-          var firstParameterOp = recordComponents.length == 0? nextComponent: recordComponents[0];
-          var firstParameterTargetType = recordComponents.length == 0? nextTargetType: recordComponents[0].getType();
-          var firstSource = recordComponents.length == 0? nextSource: this;
-          var node = map.computeIfAbsent(type, __ -> new Node(firstParameterTargetType, firstParameterOp, firstSource, recordPattern.identifier().isPresent()));
-
-          var parameterPatterns = recordPattern.patterns();
-          for (int i = 0; i < recordComponents.length; i++) {
-            var parameterPattern = parameterPatterns.get(i);
-            var parameterOp = i == recordComponents.length - 1 ? nextComponent : recordComponents[i + 1];
-            var parameterTargetType = i == recordComponents.length - 1 ? nextTargetType : recordComponents[i + 1].getType();
-            var parameterSource = i == recordComponents.length - 1 ? nextSource: this;
-            node = node.insert(parameterPattern, parameterTargetType, parameterOp, parameterSource);
+          var components = type.getRecordComponents();
+          if (components.length == 0) {
+            yield map.computeIfAbsent(type, __ -> new Node(nextTargetType, nextComponent, nextSource, recordPattern.identifier().isPresent()));
           }
-          yield node;
+          var node = map.computeIfAbsent(type, __ -> new Node(components[0].getType(), components[0], this, recordPattern.identifier().isPresent()));
+          var parameterPatterns = recordPattern.patterns();
+          for (int i = 0; i < components.length - 1; i++) {
+            node = node.insert(parameterPatterns.get(i), components[i + 1].getType(), components[i + 1], this);
+          }
+          yield node.insert(parameterPatterns.get(parameterPatterns.size() - 1), nextTargetType, nextComponent, nextSource);
         }
       };
     }
@@ -84,17 +79,6 @@ public class PatternTrees {
       var index = name.lastIndexOf('.');
       var index2 = name.lastIndexOf('$');
       return name.substring(Math.max(index, index2) + 1);
-    }
-
-    public Node find(Class<?> ... types) {
-      var node = this;
-      for(var type: types) {
-        node = node.map.get(type);
-        if (node == null) {
-          throw new IllegalArgumentException("no node at " + Arrays.toString(types));
-        }
-      }
-      return node;
     }
 
     public String toCode() {
