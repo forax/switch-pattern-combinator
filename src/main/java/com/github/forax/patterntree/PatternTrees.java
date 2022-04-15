@@ -49,15 +49,12 @@ public class PatternTrees {
         case ParenthesizedPattern parenthesizedPattern -> insert(parenthesizedPattern.pattern(), nextTargetType, nextComponent, nextSource);
         case TypePattern typePattern -> map.computeIfAbsent(typePattern.type(), __ -> new Node(nextTargetType, nextComponent, nextSource, true));
         case RecordPattern recordPattern -> {
-          var recordClass = recordPattern.type();
-          if (!recordClass.isRecord()) {
-            throw new IllegalStateException("not a record " + recordPattern.type());
-          }
-          var recordComponents = recordClass.getRecordComponents();
+          var type = recordPattern.type();
+          var recordComponents = type.getRecordComponents();
           var firstParameterOp = recordComponents.length == 0? nextComponent: recordComponents[0];
           var firstParameterTargetType = recordComponents.length == 0? nextTargetType: recordComponents[0].getType();
           var firstSource = recordComponents.length == 0? nextSource: this;
-          var node = map.computeIfAbsent(recordClass, __ -> new Node(firstParameterTargetType, firstParameterOp, firstSource, recordPattern.identifier().isPresent()));
+          var node = map.computeIfAbsent(type, __ -> new Node(firstParameterTargetType, firstParameterOp, firstSource, recordPattern.identifier().isPresent()));
 
           var parameterPatterns = recordPattern.patterns();
           for (int i = 0; i < recordComponents.length; i++) {

@@ -38,8 +38,8 @@ public sealed interface Pattern {
     }
   }
 
-  record RecordPattern(Class<?> type, List<Pattern> patterns, Optional<String> identifier) implements Pattern {
-    public RecordPattern(Class<?> type, List<Pattern> patterns) {
+  record RecordPattern(Class<? extends Record> type, List<Pattern> patterns, Optional<String> identifier) implements Pattern {
+    public RecordPattern(Class<? extends Record> type, List<Pattern> patterns) {
       this(type, patterns, Optional.empty());
     }
 
