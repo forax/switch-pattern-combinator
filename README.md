@@ -92,7 +92,7 @@ def Node createTree(targetType: Class, cases: List<Case>) -> Node:
 ```python
 def toCode(node: Node, varnum: int, scope: Dict<Node, int>, bindings: List<String>):
   if node.binding:
-    bindings = bindings.append(r(varnum));
+    bindings = bindings.append(r(varnum))
 
   # node with an index
   if node.index is initialized:
