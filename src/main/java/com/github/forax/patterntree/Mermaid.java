@@ -41,7 +41,7 @@ public class Mermaid {
 
     var style = Stream.of("")
         .<String>mapMulti((__, consumer) -> {
-          if (node.binding) {
+          if (node.typeBinding || node.recordBinding) {
             consumer.accept("stroke-dasharray: 5 5");
           }
           if (node.targetClass != null && node.targetClass.isSealed()) {
@@ -63,6 +63,7 @@ public class Mermaid {
           if (node.index != Node.UNINITIALIZED) {
             consumer.accept("index " + node.index);
           }
+
         })
         .collect(joining(", "));
 
@@ -70,26 +71,32 @@ public class Mermaid {
               id%d(%s)
             """.formatted(id, text));
 
-    if (node.targetClass == null) {
-      return;
-    }
-
-    if (node.componentSource != null && node.component != null) {
+    if (node.componentSource != null) {
       var sourceId = env.id(node.componentSource);
-      var label = node.component.getName();
       builder.append("""
-              id%d-. %s .->id%d
-            """.formatted(id, label, sourceId));
+              id%d-. source .->id%d
+            """.formatted(id, sourceId));
     }
 
     node.map.forEach((type, nextNode) -> {
       var nextId = env.id(nextNode);
       var label = simpleName(type);
       builder.append("""
-            id%d-- %s -->id%d
+            id%d-- %s --oid%d
           """.formatted(id, label, nextId));
     });
 
+    if (node.componentNode != null) {
+      var nextId = env.id(node.componentNode);
+      var label = node.componentNode.component.getName();
+      builder.append("""
+            id%d-- %s -->id%d
+          """.formatted(id, label, nextId));
+    }
+
     node.map.values().forEach(n -> toMermaidJS(n, builder, env));
+    if (node.componentNode != null) {
+      toMermaidJS(node.componentNode, builder, env);
+    }
   }
 }

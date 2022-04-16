@@ -7,7 +7,6 @@ import com.github.forax.patterntree.Pattern.TypePattern;
 
 import java.lang.reflect.RecordComponent;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,7 +19,7 @@ public class PatternTrees {
 
     var root = new Node(targetType, null, null);
     for(var item: items) {
-      root.insert(item.pattern(), null, null, null).setIndex(item.index());
+      root.insert(item.pattern()).setIndex(item.index());
     }
     return root;
   }
@@ -29,11 +28,29 @@ public class PatternTrees {
     static final int UNINITIALIZED = Integer.MIN_VALUE;
 
     final Class<?> targetClass;
+    final LinkedHashMap<Class<?>, Node> map = new LinkedHashMap<>();
+
     final RecordComponent component;
     final Node componentSource;
-    final LinkedHashMap<Class<?>, Node> map = new LinkedHashMap<>();
+    Node componentNode;
+
     int index = UNINITIALIZED;
-    boolean binding;
+    boolean typeBinding;
+    boolean recordBinding;
+
+    @Override
+    public String toString() {
+      return "Node{" +
+          "targetClass=" + targetClass +
+          ", map=" + map +
+          ", component=" + component +
+          ", componentSource=" + componentSource +
+          //", componentNode=" + componentNode +
+          ", index=" + index +
+          ", typeBinding=" + typeBinding +
+          ", recordBinding=" + recordBinding +
+          '}';
+    }
 
     private Node(Class<?> targetClass, RecordComponent component, Node componentSource) {
       this.targetClass = targetClass;
@@ -41,30 +58,44 @@ public class PatternTrees {
       this.componentSource = componentSource;
     }
 
-    public Node insert(Pattern pattern, Class<?> nextTargetType, RecordComponent nextComponent, Node nextSource) {
+    public Node insert(Pattern pattern) {
       requireNonNull(pattern);
       return switch (pattern) {
-        case NullPattern nullPattern -> map.computeIfAbsent(null, __ -> new Node(nextTargetType, nextComponent, nextSource));
-        case ParenthesizedPattern parenthesizedPattern -> insert(parenthesizedPattern.pattern(), nextTargetType, nextComponent, nextSource);
-        case TypePattern typePattern -> map.computeIfAbsent(typePattern.type(), __ -> new Node(nextTargetType, nextComponent, nextSource)).setBinding(true);
+        case NullPattern nullPattern -> map.computeIfAbsent(null, __ -> new Node(null, null, null));
+        case ParenthesizedPattern parenthesizedPattern -> insert(parenthesizedPattern.pattern());
+        case TypePattern typePattern -> map.computeIfAbsent(typePattern.type(), __ -> new Node(typePattern.type(), null, null)).setTypeBinding(true);
         case RecordPattern recordPattern -> {
           var type = recordPattern.type();
           var components = type.getRecordComponents();
-          if (components.length == 0) {
-            yield map.computeIfAbsent(type, __ -> new Node(nextTargetType, nextComponent, nextSource)).setBinding(recordPattern.identifier().isPresent());
+          var patterns = recordPattern.patterns();
+
+          var first = map.computeIfAbsent(type, __ -> new Node(type, null, null)).setRecordBinding(recordPattern.identifier().isPresent());
+          var node = first;
+
+          for (int i = 0; i < components.length; i++) {
+            var component = components[i];
+            var componentPattern = patterns.get(i);
+            Node child;
+            if (node.componentNode == null) {
+              child = new Node(component.getType(), component, first);
+              node.componentNode = child;
+            } else {
+              child = node.componentNode;
+            }
+            node = child.insert(componentPattern);
           }
-          var node = map.computeIfAbsent(type, __ -> new Node(components[0].getType(), components[0], this)).setBinding(recordPattern.identifier().isPresent());
-          var parameterPatterns = recordPattern.patterns();
-          for (int i = 0; i < components.length - 1; i++) {
-            node = node.insert(parameterPatterns.get(i), components[i + 1].getType(), components[i + 1], this);
-          }
-          yield node.insert(parameterPatterns.get(parameterPatterns.size() - 1), nextTargetType, nextComponent, nextSource);
+          yield node;
         }
       };
     }
 
-    public Node setBinding(boolean binding) {
-      this.binding |= binding;
+    public Node setTypeBinding(boolean typeBinding) {
+      this.typeBinding |= typeBinding;
+      return this;
+    }
+
+    public Node setRecordBinding(boolean recordBinding) {
+      this.recordBinding |= recordBinding;
       return this;
     }
 
@@ -87,7 +118,7 @@ public class PatternTrees {
 
     public String toCode() {
       var builder = new StringBuilder();
-      toCode(builder, 0, 0, new Scope(), List.of());
+      toCode(builder, 0, 0, map.containsKey(null), new Scope(), List.of());
       return builder.toString();
     }
 
@@ -105,7 +136,7 @@ public class PatternTrees {
       private final HashMap<Node, Integer> map = new HashMap<>();
 
       public void set(Node node, int varnum) {
-        var result = map.put(node, varnum);
+        map.put(node, varnum);
       }
 
       public int get(Node node) {
@@ -113,94 +144,96 @@ public class PatternTrees {
       }
     }
 
-    private void toCode(StringBuilder builder, int depth, int varnum, Scope scope, List<String> bindings) {
-      if (binding && (component == null || index == UNINITIALIZED)) {
+    private void toCode(StringBuilder builder, int depth, int varnum, boolean notNull, Scope scope, List<String> bindings) {
+      //var recordBindings = recordBinding? append(bindings, r(varnum)): bindings;
+
+      if (typeBinding && index == UNINITIALIZED) {
         bindings = append(bindings, r(varnum));
       }
 
-      var nullCheckForComponents = component != null
-          && index != UNINITIALIZED
-          && !componentSource.map.containsKey(null)
-          && componentSource.map.get(componentSource.targetClass) == this;
-      if (nullCheckForComponents) {
-        var input = scope.get(componentSource);
+      var unprotectedAccess = index != UNINITIALIZED && !notNull && componentNode != null && componentNode.componentSource == this;
+      if (unprotectedAccess) {
         builder.append("""
             if %s != null {
-            """.formatted(r(input)).indent(depth));
+            """.formatted(r(varnum)).indent(depth));
+        notNull = true;
         depth += 2;
       }
 
-      if (component != null) {
+      if (componentSource != null) {
         var input = scope.get(componentSource);
         builder.append("""
             %s %s = %s.%s();
             """.formatted(simpleName(component.getType()), r(varnum + 1), r(input), component.getName()).indent(depth));
+        notNull = false;
         varnum++;
       }
 
-      if (targetClass != null) {
-        var transitions = new ArrayList<>(map.entrySet());
-        for (int i = 0; i < transitions.size(); i++) {
-          var entry = transitions.get(i);
-          var type = entry.getKey();
-          var nextNode = entry.getValue();
-          if (type == null) {
-            builder.append("""
+      var transitions = new ArrayList<>(map.entrySet());
+      for (int i = 0; i < transitions.size(); i++) {
+        var entry = transitions.get(i);
+        var type = entry.getKey();
+        var nextNode = entry.getValue();
+        if (type == null) {
+          builder.append("""
               if %s == null {
               """.formatted(r(varnum)).indent(depth));
-            nextNode.toCode(builder, depth + 2, varnum, scope, bindings);
-            builder.append("}\n".indent(depth));
+          nextNode.toCode(builder, depth + 2, varnum, false, scope, bindings);
+          builder.append("}\n".indent(depth));
+          continue;
+        }
+
+        var sealed = targetClass.isSealed();
+        var typename = simpleName(type);
+        if (i == transitions.size() - 1) { // last node
+          if (type == targetClass) {
+            // do nothing
+            scope.set(this, varnum);
+            nextNode.toCode(builder, depth, varnum, notNull || map.containsKey(null), scope, bindings);
             continue;
           }
-
-          var sealed = targetClass.isSealed();
-          var typename = simpleName(type);
-          if (i == transitions.size() - 1) { // last node
-            if (type == targetClass) {
-              // do nothing
-              scope.set(this, varnum);
-              nextNode.toCode(builder, depth, varnum, scope, bindings);
-              continue;
-            }
-            if (sealed) {
-              if (!map.containsKey(null)) {  // null is in the remainder
-                if (type.isRecord() && type.getRecordComponents().length != 0) {
-                  builder.append("""
+          if (sealed) {
+            if (!map.containsKey(null)) {  // null is in the remainder
+              if (type.isRecord() && type.getRecordComponents().length != 0) {
+                builder.append("""
                     // implicit null check of %s
                     """.formatted(r(varnum)).indent(depth));
-                } else {
-                  builder.append("""
+              } else {
+                builder.append("""
                     requireNonNull(%s);  // null is a remainder
                     """.formatted(r(varnum)).indent(depth));
-                }
               }
-              builder.append("""
+            }
+            builder.append("""
                 %s %s = (%s) %s;    // catch(CCE) -> ICCE
                 """.formatted(typename, r(varnum + 1), typename, r(varnum)).indent(depth));
-              scope.set(this, varnum + 1);
-              nextNode.toCode(builder, depth, varnum + 1, scope, bindings);
-              continue;
-            }
+            scope.set(this, varnum + 1);
+            nextNode.toCode(builder, depth, varnum + 1, true, scope, bindings);
+            continue;
           }
-          builder.append("""
+        }
+        builder.append("""
             if %s instanceof %s {
               %s %s = (%s) %s;
             """.formatted(r(varnum), typename, typename, r(varnum + 1), typename, r(varnum)).indent(depth));
-          scope.set(this, varnum + 1);
-          nextNode.toCode(builder, depth + 2, varnum + 1, scope, bindings);
-          builder.append("}\n".indent(depth));
-        }
+        scope.set(this, varnum + 1);
+        nextNode.toCode(builder, depth + 2, varnum + 1, true, scope, bindings);
+        builder.append("}\n".indent(depth));
       }
 
-      if (nullCheckForComponents) {
+      if (componentNode != null) {
+        scope.set(this, varnum);
+        componentNode.toCode(builder, depth, varnum, notNull || map.containsKey(null), scope, bindings);
+      }
+
+      if (unprotectedAccess) {
         depth -= 2;
         builder.append("}\n".indent(depth));
       }
       if (index != UNINITIALIZED) {
-        if (component != null) {
+        if (typeBinding) {
           bindings = append(bindings, r(varnum));
         }
-
         builder.append("""
           return call %d(%s);
           """.formatted(index, String.join(", ", bindings)).indent(depth));

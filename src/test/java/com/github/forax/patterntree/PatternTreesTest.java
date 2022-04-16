@@ -13,6 +13,36 @@ import static org.junit.jupiter.api.Assertions.*;
 public class PatternTreesTest {
 
   @Nested
+  class Simple {
+    record Foo(int x) {}
+
+    @Test
+    public void createTree() {
+      // Object o = ...
+      // switch(o) {
+      //   case Foo(int x) -> 1
+      //   case Object o3 -> 2
+      // }
+      var root = PatternTrees.createTree(Object.class, List.of(
+              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(int.class, "x"))), 1),
+              new Case(new TypePattern(Object.class, "o3"), 2)
+          )
+      );
+
+      System.out.println(Mermaid.toMermaidJS(root));
+
+      assertEquals("""
+        if r0 instanceof Foo {
+          Foo r1 = (Foo) r0;
+          int r2 = r1.x();
+          return call 1(r2);
+        }
+        return call 2(r0);
+        """, root.toCode());
+    }
+  }
+
+  @Nested
   class ShareALot {
     record Foo(Object o, Object o2) {}
     record Bar(int x) {}
@@ -75,6 +105,8 @@ public class PatternTreesTest {
           )
       );
 
+      System.out.println(Mermaid.toMermaidJS(root));
+
       assertEquals("""
         if r0 instanceof A {
           A r1 = (A) r0;
@@ -115,6 +147,8 @@ public class PatternTreesTest {
               new Case(new RecordPattern(I.A.class, List.of(new TypePattern(int.class, "a"), new TypePattern(double.class, "b"))), 3)
           )
       );
+
+      System.out.println(Mermaid.toMermaidJS(root));
 
       assertEquals("""
         if r0 instanceof C {
@@ -158,6 +192,10 @@ public class PatternTreesTest {
           new Case(new RecordPattern(Foo.class, List.of(new TypePattern(I.B.class, "b"), new TypePattern(I.B.class, "b2"))), 4)
           )
       );
+
+      System.out.println(root);
+
+      System.out.println(Mermaid.toMermaidJS(root));
 
       assertEquals("""
         I r1 = r0.i1();
@@ -210,6 +248,8 @@ public class PatternTreesTest {
           new Case(new RecordPattern(Foo.class, List.of(new RecordPattern(I.B.class, List.of(new TypePattern(int.class, "y"))), new RecordPattern(I.B.class, List.of(new TypePattern(int.class, "y2"))))), 4)
           )
       );
+
+      System.out.println(Mermaid.toMermaidJS(root));
 
       assertEquals("""
         I r1 = r0.i1();
@@ -295,6 +335,8 @@ public class PatternTreesTest {
           )
       );
 
+      System.out.println(Mermaid.toMermaidJS(root));
+
       assertEquals("""
         if r0 instanceof Foo {
           Foo r1 = (Foo) r0;
@@ -340,7 +382,7 @@ public class PatternTreesTest {
             return call 1(r2);
           }
         }
-        return call 2(r1);
+        return call 2(r0);
         """, root.toCode());
     }
   }
@@ -374,7 +416,7 @@ public class PatternTreesTest {
             String r3 = (String) r2;
             return call 1(r3);
           }
-          return call 2(r2);
+          return call 2(r1);
         }
         return call 3(r0);
         """, root.toCode());
