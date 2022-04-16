@@ -422,4 +422,80 @@ public class PatternTreesTest {
         """, root.toCode());
     }
   }
+
+  @Nested
+  class NullAndSealed {
+    record Foo(I i) {}
+    sealed interface I {
+      final class A implements I {}
+    }
+
+    @Test
+    public void createTree() {
+      // Object o = ...
+      // switch(o) {
+      //   case Foo(null) -> 1
+      //   case Foo(A a) -> 2
+      //   case Object o2 -> 3
+      // }
+      var root = PatternTrees.createTree(Object.class, List.of(
+              new Case(new RecordPattern(Foo.class, List.of(new NullPattern())), 1),
+              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(I.A.class, "a"))), 2),
+              new Case(new TypePattern(Object.class, "o2"), 3)
+          )
+      );
+
+      System.out.println(Mermaid.toMermaidJS(root));
+
+      assertEquals("""
+        if r0 instanceof Foo {
+          Foo r1 = (Foo) r0;
+          I r2 = r1.i();
+          if r2 == null {
+            return call 1();
+          }
+          A r3 = (A) r2;    // catch(CCE) -> ICCE
+          return call 2(r3);
+        }
+        return call 3(r0);
+        """, root.toCode());
+    }
+  }
+
+  @Nested
+  class NullAndSealed2 {
+    record Foo(I i) {}
+    sealed interface I {
+      final class A implements I {}
+    }
+
+    @Test
+    public void createTree() {
+      // Object o = ...
+      // switch(o) {
+      //   case Foo(A a) -> 2
+      //   case Object o2 -> 3
+      // }
+      var root = PatternTrees.createTree(Object.class, List.of(
+              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(I.A.class, "a"))), 1),
+              new Case(new TypePattern(Object.class, "o2"), 2)
+          )
+      );
+      root.find(Foo.class, "i").setPartial();
+
+      System.out.println(Mermaid.toMermaidJS(root));
+
+      assertEquals("""
+        if r0 instanceof Foo {
+          Foo r1 = (Foo) r0;
+          I r2 = r1.i();
+          if r2 != null {  // sealed and partial
+            A r3 = (A) r2;    // catch(CCE) -> ICCE
+            return call 1(r3);
+          }
+        }
+        return call 2(r0);
+        """, root.toCode());
+    }
+  }
 }

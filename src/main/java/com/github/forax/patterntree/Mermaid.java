@@ -44,6 +44,9 @@ public class Mermaid {
           if (node.typeBinding || node.recordBinding) {
             consumer.accept("stroke-dasharray: 5 5");
           }
+          if (node.partial) {
+            consumer.accept("stroke:#b0b0b0");
+          }
           if (node.targetClass != null && node.targetClass.isSealed()) {
             consumer.accept("stroke-width: 4px");
           }

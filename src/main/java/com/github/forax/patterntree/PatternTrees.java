@@ -37,6 +37,7 @@ public class PatternTrees {
     int index = UNINITIALIZED;
     boolean typeBinding;
     boolean recordBinding;
+    boolean partial;
 
     @Override
     public String toString() {
@@ -106,6 +107,43 @@ public class PatternTrees {
       this.index = index;
     }
 
+    public void setPartial() {
+      if (partial) {
+        throw new IllegalStateException("partial already set");
+      }
+      if (targetClass == null || !targetClass.isSealed()) {
+        throw new IllegalStateException(targetClass + " can not be partial");
+      }
+      partial = true;
+    }
+
+    public Node find(Object... transitions) {
+      var node = this;
+      for(var transition: transitions) {
+        node = switch (transition) {
+          case String s -> {
+            var child = node.componentNode;
+            if (child == null) {
+              throw new IllegalArgumentException("null child for " + s);
+            }
+            if (!child.component.getName().equals(s)) {
+              throw new IllegalArgumentException("bad name for component " + child.component.getName() + " " + s);
+            }
+            yield child;
+          }
+          case Class<?> type -> {
+            var child = map.get(type);
+            if (child == null) {
+              throw new IllegalArgumentException("null child for type " + type.getName());
+            }
+            yield child;
+          }
+          default -> throw new IllegalArgumentException("bad argument " + transition);
+        };
+      }
+      return node;
+    }
+
     private static String simpleName(Class<?> clazz) {
       if (clazz == null) { // null pattern
         return "null";
@@ -145,9 +183,7 @@ public class PatternTrees {
     }
 
     private void toCode(StringBuilder builder, int depth, int varnum, boolean notNull, Scope scope, List<String> bindings) {
-      //var recordBindings = recordBinding? append(bindings, r(varnum)): bindings;
-
-      if (typeBinding && index == UNINITIALIZED) {
+      if (typeBinding && (!recordBinding && index == UNINITIALIZED)) {
         bindings = append(bindings, r(varnum));
       }
 
@@ -193,15 +229,22 @@ public class PatternTrees {
             continue;
           }
           if (sealed) {
-            if (!map.containsKey(null)) {  // null is in the remainder
-              if (type.isRecord() && type.getRecordComponents().length != 0) {
+            if (!notNull && !map.containsKey(null)) {  // null is in the remainder
+              if (partial) {
                 builder.append("""
-                    // implicit null check of %s
-                    """.formatted(r(varnum)).indent(depth));
+                      if %s != null {  // sealed and partial
+                      """.formatted(r(varnum)).indent(depth));
+                depth += 2;
               } else {
-                builder.append("""
-                    requireNonNull(%s);  // null is a remainder
-                    """.formatted(r(varnum)).indent(depth));
+                if (type.isRecord() && type.getRecordComponents().length != 0) {
+                  builder.append("""
+                      // implicit null check of %s
+                      """.formatted(r(varnum)).indent(depth));
+                } else {
+                  builder.append("""
+                      requireNonNull(%s);  // null is a remainder
+                      """.formatted(r(varnum)).indent(depth));
+                }
               }
             }
             builder.append("""
@@ -209,6 +252,12 @@ public class PatternTrees {
                 """.formatted(typename, r(varnum + 1), typename, r(varnum)).indent(depth));
             scope.set(this, varnum + 1);
             nextNode.toCode(builder, depth, varnum + 1, true, scope, bindings);
+
+            if (!notNull && !map.containsKey(null) && partial) {
+              depth -= 2;
+              builder.append("}\n".indent(depth));
+            }
+
             continue;
           }
         }
@@ -231,7 +280,7 @@ public class PatternTrees {
         builder.append("}\n".indent(depth));
       }
       if (index != UNINITIALIZED) {
-        if (typeBinding) {
+        if (typeBinding && !recordBinding) {
           bindings = append(bindings, r(varnum));
         }
         builder.append("""
