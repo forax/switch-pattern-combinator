@@ -1,6 +1,5 @@
 package com.github.forax.patterntree;
 
-import com.github.forax.patterntree.Pattern.NullPattern;
 import com.github.forax.patterntree.Pattern.RecordPattern;
 import com.github.forax.patterntree.Pattern.TypePattern;
 import org.junit.jupiter.api.Nested;
@@ -285,77 +284,6 @@ public class PatternTreesTest {
   }
 
   @Nested
-  class CaseNull {
-    @Test
-    public void createTree() {
-      // Object o = ...
-      // switch(o) {
-      //   case null -> 1
-      //   case String s -> 2
-      //   case Object o2 -> 3
-      // }
-      var root = PatternTrees.createTree(Object.class, List.of(
-          new Case(new NullPattern(), 1),
-          new Case(new TypePattern(String.class, "s"), 2),
-          new Case(new TypePattern(Object.class, "o2"), 3)
-          )
-      );
-
-      assertEquals("""
-        if r0 == null {
-          return call 1();
-        }
-        if r0 instanceof String {
-          String r1 = (String) r0;
-          return call 2(r1);
-        }
-        return call 3(r0);
-        """, root.toCode());
-    }
-  }
-
-  @Nested
-  class RecordWithNull {
-    record Foo(Object o) {}
-
-    @Test
-    public void createTree() {
-      // Object o = ...
-      // switch(o) {
-      //   case Foo(null) -> 1
-      //   case Foo(String s) -> 2
-      //   case Foo(Object o2) -> 3
-      //   case Object o3 -> 4
-      // }
-      var root = PatternTrees.createTree(Object.class, List.of(
-              new Case(new RecordPattern(Foo.class, List.of(new NullPattern())), 1),
-              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(String.class, "s"))), 2),
-              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(Object.class, "o2"))), 3),
-              new Case(new TypePattern(Object.class, "o3"), 4)
-          )
-      );
-
-      System.out.println(Mermaid.toMermaidJS(root));
-
-      assertEquals("""
-        if r0 instanceof Foo {
-          Foo r1 = (Foo) r0;
-          Object r2 = r1.o();
-          if r2 == null {
-            return call 1();
-          }
-          if r2 instanceof String {
-            String r3 = (String) r2;
-            return call 2(r3);
-          }
-          return call 3(r2);
-        }
-        return call 4(r0);
-        """, root.toCode());
-    }
-  }
-
-  @Nested
   class ShareTypePatternAndRecordPatternOnTheSameNode {
     record Foo(Object o) {}
 
@@ -424,46 +352,7 @@ public class PatternTreesTest {
   }
 
   @Nested
-  class NullAndSealed {
-    record Foo(I i) {}
-    sealed interface I {
-      final class A implements I {}
-    }
-
-    @Test
-    public void createTree() {
-      // Object o = ...
-      // switch(o) {
-      //   case Foo(null) -> 1
-      //   case Foo(A a) -> 2
-      //   case Object o2 -> 3
-      // }
-      var root = PatternTrees.createTree(Object.class, List.of(
-              new Case(new RecordPattern(Foo.class, List.of(new NullPattern())), 1),
-              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(I.A.class, "a"))), 2),
-              new Case(new TypePattern(Object.class, "o2"), 3)
-          )
-      );
-
-      System.out.println(Mermaid.toMermaidJS(root));
-
-      assertEquals("""
-        if r0 instanceof Foo {
-          Foo r1 = (Foo) r0;
-          I r2 = r1.i();
-          if r2 == null {
-            return call 1();
-          }
-          A r3 = (A) r2;    // catch(CCE) -> ICCE
-          return call 2(r3);
-        }
-        return call 3(r0);
-        """, root.toCode());
-    }
-  }
-
-  @Nested
-  class NullAndSealed2 {
+  class SealedAndNull {
     record Foo(I i) {}
     sealed interface I {
       final class A implements I {}

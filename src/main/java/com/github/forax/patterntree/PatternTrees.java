@@ -1,6 +1,5 @@
 package com.github.forax.patterntree;
 
-import com.github.forax.patterntree.Pattern.NullPattern;
 import com.github.forax.patterntree.Pattern.ParenthesizedPattern;
 import com.github.forax.patterntree.Pattern.RecordPattern;
 import com.github.forax.patterntree.Pattern.TypePattern;
@@ -62,7 +61,6 @@ public class PatternTrees {
     public Node insert(Pattern pattern) {
       requireNonNull(pattern);
       return switch (pattern) {
-        case NullPattern nullPattern -> map.computeIfAbsent(null, __ -> new Node(null, null, null));
         case ParenthesizedPattern parenthesizedPattern -> insert(parenthesizedPattern.pattern());
         case TypePattern typePattern -> map.computeIfAbsent(typePattern.type(), __ -> new Node(typePattern.type(), null, null)).setTypeBinding(true);
         case RecordPattern recordPattern -> {
@@ -145,9 +143,6 @@ public class PatternTrees {
     }
 
     private static String simpleName(Class<?> clazz) {
-      if (clazz == null) { // null pattern
-        return "null";
-      }
       var name = clazz.getName();
       var index = name.lastIndexOf('.');
       var index2 = name.lastIndexOf('$');
@@ -156,7 +151,7 @@ public class PatternTrees {
 
     public String toCode() {
       var builder = new StringBuilder();
-      toCode(builder, 0, 0, map.containsKey(null), new Scope(), List.of());
+      toCode(builder, 0, 0, false, new Scope(), List.of());
       return builder.toString();
     }
 
@@ -210,14 +205,6 @@ public class PatternTrees {
         var entry = transitions.get(i);
         var type = entry.getKey();
         var nextNode = entry.getValue();
-        if (type == null) {
-          builder.append("""
-              if %s == null {
-              """.formatted(r(varnum)).indent(depth));
-          nextNode.toCode(builder, depth + 2, varnum, false, scope, bindings);
-          builder.append("}\n".indent(depth));
-          continue;
-        }
 
         var sealed = targetClass.isSealed();
         var typename = simpleName(type);
@@ -225,11 +212,11 @@ public class PatternTrees {
           if (type == targetClass) {
             // do nothing
             scope.set(this, varnum);
-            nextNode.toCode(builder, depth, varnum, notNull || map.containsKey(null), scope, bindings);
+            nextNode.toCode(builder, depth, varnum, notNull, scope, bindings);
             continue;
           }
           if (sealed) {
-            if (!notNull && !map.containsKey(null)) {  // null is in the remainder
+            if (!notNull) {  // null is in the remainder
               if (partial) {
                 builder.append("""
                       if %s != null {  // sealed and partial
@@ -253,11 +240,10 @@ public class PatternTrees {
             scope.set(this, varnum + 1);
             nextNode.toCode(builder, depth, varnum + 1, true, scope, bindings);
 
-            if (!notNull && !map.containsKey(null) && partial) {
+            if (!notNull && partial) {
               depth -= 2;
               builder.append("}\n".indent(depth));
             }
-
             continue;
           }
         }
@@ -272,7 +258,7 @@ public class PatternTrees {
 
       if (componentNode != null) {
         scope.set(this, varnum);
-        componentNode.toCode(builder, depth, varnum, notNull || map.containsKey(null), scope, bindings);
+        componentNode.toCode(builder, depth, varnum, notNull, scope, bindings);
       }
 
       if (unprotectedAccess) {

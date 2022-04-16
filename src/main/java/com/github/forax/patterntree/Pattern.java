@@ -23,8 +23,6 @@ import static java.util.Objects.requireNonNull;
 //RecordComponentPatternList :
 //    Pattern { , Pattern }
 public sealed interface Pattern {
-  record NullPattern() implements Pattern {}
-
   record TypePattern(Class<?> type, String identifier) implements Pattern {
     public TypePattern {
       requireNonNull(type);
