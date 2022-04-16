@@ -200,15 +200,15 @@ public class PatternTrees {
         varnum++;
       }
 
-      var transitions = new ArrayList<>(map.entrySet());
-      for (int i = 0; i < transitions.size(); i++) {
-        var entry = transitions.get(i);
+      var iterator = map.entrySet().iterator();
+      while (iterator.hasNext()) {
+        var entry = iterator.next();
         var type = entry.getKey();
         var nextNode = entry.getValue();
 
         var sealed = targetClass.isSealed();
         var typename = simpleName(type);
-        if (i == transitions.size() - 1) { // last node
+        if (!iterator.hasNext()) { // last node
           if (type == targetClass) {
             // do nothing
             scope.set(this, varnum);
