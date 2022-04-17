@@ -2,6 +2,8 @@ package com.github.forax.patterntree;
 
 import com.github.forax.patterntree.Pattern.RecordPattern;
 import com.github.forax.patterntree.Pattern.TypePattern;
+import com.github.forax.patterntree.PatternTreesTest.SealedAllCombinations.Foo;
+import com.github.forax.patterntree.PatternTreesTest.SealedAllCombinations.I;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -103,6 +105,7 @@ public class PatternTreesTest {
               new Case(new TypePattern(I.C.class, "c"), 3)
           )
       );
+      root.setTotal();
 
       System.out.println(Mermaid.toMermaidJS(root));
 
@@ -146,6 +149,7 @@ public class PatternTreesTest {
               new Case(new RecordPattern(I.A.class, List.of(new TypePattern(int.class, "a"), new TypePattern(double.class, "b"))), 3)
           )
       );
+      root.setTotal();
 
       System.out.println(Mermaid.toMermaidJS(root));
 
@@ -191,6 +195,9 @@ public class PatternTreesTest {
           new Case(new RecordPattern(Foo.class, List.of(new TypePattern(I.B.class, "b"), new TypePattern(I.B.class, "b2"))), 4)
           )
       );
+      root.find(Foo.class, "i1").setTotal();
+      root.find(Foo.class, "i1", I.A.class, "i2").setTotal();
+      root.find(Foo.class, "i1", I.B.class, "i2").setTotal();
 
       System.out.println(root);
 
@@ -247,6 +254,9 @@ public class PatternTreesTest {
           new Case(new RecordPattern(Foo.class, List.of(new RecordPattern(I.B.class, List.of(new TypePattern(int.class, "y"))), new RecordPattern(I.B.class, List.of(new TypePattern(int.class, "y2"))))), 4)
           )
       );
+      root.find(Foo.class, "i1").setTotal();
+      root.find(Foo.class, "i1", I.A.class, "x", int.class, "i2").setTotal();
+      root.find(Foo.class, "i1", I.B.class, "y", int.class, "i2").setTotal();
 
       System.out.println(Mermaid.toMermaidJS(root));
 
@@ -370,7 +380,6 @@ public class PatternTreesTest {
               new Case(new TypePattern(Object.class, "o2"), 2)
           )
       );
-      root.find(Foo.class, "i").setPartial();
 
       System.out.println(Mermaid.toMermaidJS(root));
 
@@ -378,8 +387,8 @@ public class PatternTreesTest {
         if r0 instanceof Foo {
           Foo r1 = (Foo) r0;
           I r2 = r1.i();
-          if r2 != null {  // sealed and partial
-            A r3 = (A) r2;    // catch(CCE) -> ICCE
+          if r2 instanceof A {
+            A r3 = (A) r2;
             return call 1(r3);
           }
         }

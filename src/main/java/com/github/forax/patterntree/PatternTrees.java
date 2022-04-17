@@ -34,9 +34,9 @@ public class PatternTrees {
     Node componentNode;
 
     int index = UNINITIALIZED;
+    boolean total;
     boolean typeBinding;
     boolean recordBinding;
-    boolean partial;
 
     @Override
     public String toString() {
@@ -44,9 +44,10 @@ public class PatternTrees {
           "targetClass=" + targetClass +
           ", map=" + map +
           ", component=" + component +
-          ", componentSource=" + componentSource +
-          //", componentNode=" + componentNode +
+          //", componentSource=" + componentSource +
+          ", componentNode=" + componentNode +
           ", index=" + index +
+          ", total=" + total +
           ", typeBinding=" + typeBinding +
           ", recordBinding=" + recordBinding +
           '}';
@@ -105,14 +106,14 @@ public class PatternTrees {
       this.index = index;
     }
 
-    public void setPartial() {
-      if (partial) {
-        throw new IllegalStateException("partial already set");
+    public void setTotal() {
+      if (total) {
+        throw new IllegalStateException("total already set");
       }
       if (targetClass == null || !targetClass.isSealed()) {
-        throw new IllegalStateException(targetClass + " can not be partial");
+        throw new IllegalStateException(targetClass + " can not be total");
       }
-      partial = true;
+      total = true;
     }
 
     public Node find(Object... transitions) {
@@ -125,12 +126,12 @@ public class PatternTrees {
               throw new IllegalArgumentException("null child for " + s);
             }
             if (!child.component.getName().equals(s)) {
-              throw new IllegalArgumentException("bad name for component " + child.component.getName() + " " + s);
+              throw new IllegalArgumentException("bad name for component '" + child.component.getName() + "' " + s);
             }
             yield child;
           }
           case Class<?> type -> {
-            var child = map.get(type);
+            var child = node.map.get(type);
             if (child == null) {
               throw new IllegalArgumentException("null child for type " + type.getName());
             }
@@ -206,7 +207,6 @@ public class PatternTrees {
         var type = entry.getKey();
         var nextNode = entry.getValue();
 
-        var sealed = targetClass.isSealed();
         var typename = simpleName(type);
         if (!iterator.hasNext()) { // last node
           if (type == targetClass) {
@@ -215,23 +215,16 @@ public class PatternTrees {
             nextNode.toCode(builder, depth, varnum, notNull, scope, bindings);
             continue;
           }
-          if (sealed) {
+          if (total) {    // sealed and total
             if (!notNull) {  // null is in the remainder
-              if (partial) {
+              if (type.isRecord() && type.getRecordComponents().length != 0) {
                 builder.append("""
-                      if %s != null {  // sealed and partial
-                      """.formatted(r(varnum)).indent(depth));
-                depth += 2;
-              } else {
-                if (type.isRecord() && type.getRecordComponents().length != 0) {
-                  builder.append("""
                       // implicit null check of %s
                       """.formatted(r(varnum)).indent(depth));
-                } else {
-                  builder.append("""
+              } else {
+                builder.append("""
                       requireNonNull(%s);  // null is a remainder
                       """.formatted(r(varnum)).indent(depth));
-                }
               }
             }
             builder.append("""
@@ -239,11 +232,6 @@ public class PatternTrees {
                 """.formatted(typename, r(varnum + 1), typename, r(varnum)).indent(depth));
             scope.set(this, varnum + 1);
             nextNode.toCode(builder, depth, varnum + 1, true, scope, bindings);
-
-            if (!notNull && partial) {
-              depth -= 2;
-              builder.append("}\n".indent(depth));
-            }
             continue;
           }
         }
