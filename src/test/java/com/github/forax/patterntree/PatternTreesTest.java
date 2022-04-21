@@ -2,8 +2,6 @@ package com.github.forax.patterntree;
 
 import com.github.forax.patterntree.Pattern.RecordPattern;
 import com.github.forax.patterntree.Pattern.TypePattern;
-import com.github.forax.patterntree.PatternTreesTest.SealedAllCombinations.Foo;
-import com.github.forax.patterntree.PatternTreesTest.SealedAllCombinations.I;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -25,7 +23,7 @@ public class PatternTreesTest {
       //   case Object o3 -> 2
       // }
       var root = PatternTrees.createTree(Object.class, List.of(
-              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(int.class, "x"))), 1),
+              new Case(new RecordPattern(Foo.class, new TypePattern(int.class, "x")), 1),
               new Case(new TypePattern(Object.class, "o3"), 2)
           )
       );
@@ -44,6 +42,62 @@ public class PatternTreesTest {
   }
 
   @Nested
+  class Example {
+    record Foo(I i, I i2) {}
+    sealed interface I {
+      record A(int x) implements I {}
+      record B(String s) implements I {}
+    }
+
+    @Test
+    public void createTree() {
+      // Foo foo = ...
+      // switch(foo) {
+      //   case Foo(A a, A(int x)) -> 1
+      //   case Foo(A a, A a2) -> 2
+      //   case Foo(A a, B(String s)) -> 3
+      //   case Foo(B b, I i) -> 4
+      // }
+      var root = PatternTrees.createTree(Foo.class, List.of(
+              new Case(new RecordPattern(Foo.class, new TypePattern(I.A.class, "a"), new RecordPattern(I.A.class, new TypePattern(int.class, "x"))), 1),
+              new Case(new RecordPattern(Foo.class, new TypePattern(I.A.class, "a"), new TypePattern(I.A.class, "a2")), 2),
+              new Case(new RecordPattern(Foo.class, new TypePattern(I.A.class, "a"), new RecordPattern(I.B.class, new TypePattern(String.class, "s"))), 3),
+              new Case(new RecordPattern(Foo.class, new TypePattern(I.B.class, "b"), new TypePattern(I.class, "i")), 4)
+          )
+      );
+      root.find(Foo.class, "i").setTotal();
+      root.find(Foo.class, "i", I.A.class, "i2").setTotal();
+
+      System.out.println(Mermaid.toMermaidJS(root));
+
+      assertEquals("""
+          I r1 = r0.i();
+          if r1 instanceof A {
+            A r2 = (A) r1;
+            I r3 = r0.i2();
+            if r3 instanceof A {
+              A r4 = (A) r3;
+              int r5 = r4.x();
+              return call 1(r2, r5);
+            }
+            if r3 == null {
+              A r4 = (A) r3;
+              return call 2(r2, r4);
+            }
+            // implicit null check of r3
+            B r4 = (B) r3;    // catch(CCE) -> ICCE
+            String r5 = r4.s();
+            return call 3(r2, r5);
+          }
+          // implicit null check of r1
+          B r2 = (B) r1;    // catch(CCE) -> ICCE
+          I r3 = r0.i2();
+          return call 4(r2, r3);
+          """, root.toCode());
+    }
+  }
+
+  @Nested
   class ShareALot {
     record Foo(Object o, Object o2) {}
     record Bar(int x) {}
@@ -57,8 +111,8 @@ public class PatternTreesTest {
       //   case Object o3 -> 3
       // }
       var root = PatternTrees.createTree(Object.class, List.of(
-              new Case(new RecordPattern(Foo.class, List.of(new RecordPattern(Bar.class, List.of(new TypePattern(int.class, "x"))), new TypePattern(Integer.class, "i"))), 1),
-              new Case(new RecordPattern(Foo.class, List.of(new RecordPattern(Bar.class, List.of(new TypePattern(int.class, "y"))), new TypePattern(Object.class, "o2"))), 2),
+              new Case(new RecordPattern(Foo.class, new RecordPattern(Bar.class, List.of(new TypePattern(int.class, "x"))), new TypePattern(Integer.class, "i")), 1),
+              new Case(new RecordPattern(Foo.class, new RecordPattern(Bar.class, List.of(new TypePattern(int.class, "y"))), new TypePattern(Object.class, "o2")), 2),
               new Case(new TypePattern(Object.class, "o3"), 3)
           )
       );
@@ -100,8 +154,8 @@ public class PatternTreesTest {
       //   case C c -> 3
       // }
       var root = PatternTrees.createTree(I.class, List.of(
-              new Case(new RecordPattern(I.A.class, List.of(new TypePattern(int.class, "a"), new TypePattern(double.class, "b"))), 1),
-              new Case(new RecordPattern(I.B.class, List.of()), 2),
+              new Case(new RecordPattern(I.A.class, new TypePattern(int.class, "a"), new TypePattern(double.class, "b")), 1),
+              new Case(new RecordPattern(I.B.class), 2),
               new Case(new TypePattern(I.C.class, "c"), 3)
           )
       );
@@ -145,8 +199,8 @@ public class PatternTreesTest {
       // }
       var root = PatternTrees.createTree(I.class, List.of(
               new Case(new TypePattern(I.C.class, "c"), 1),
-              new Case(new RecordPattern(I.B.class, List.of()), 2),
-              new Case(new RecordPattern(I.A.class, List.of(new TypePattern(int.class, "a"), new TypePattern(double.class, "b"))), 3)
+              new Case(new RecordPattern(I.B.class), 2),
+              new Case(new RecordPattern(I.A.class, new TypePattern(int.class, "a"), new TypePattern(double.class, "b")), 3)
           )
       );
       root.setTotal();
@@ -189,10 +243,10 @@ public class PatternTreesTest {
       //   case Foo(B b, B b2) -> 4
       // }
       var root = PatternTrees.createTree(Foo.class, List.of(
-          new Case(new RecordPattern(Foo.class, List.of(new TypePattern(I.A.class, "a"), new TypePattern(I.A.class, "a2"))), 1),
-          new Case(new RecordPattern(Foo.class, List.of(new TypePattern(I.A.class, "a"), new TypePattern(I.B.class, "b"))), 2),
-          new Case(new RecordPattern(Foo.class, List.of(new TypePattern(I.B.class, "b"), new TypePattern(I.A.class, "a"))), 3),
-          new Case(new RecordPattern(Foo.class, List.of(new TypePattern(I.B.class, "b"), new TypePattern(I.B.class, "b2"))), 4)
+          new Case(new RecordPattern(Foo.class, new TypePattern(I.A.class, "a"), new TypePattern(I.A.class, "a2")), 1),
+          new Case(new RecordPattern(Foo.class, new TypePattern(I.A.class, "a"), new TypePattern(I.B.class, "b")), 2),
+          new Case(new RecordPattern(Foo.class, new TypePattern(I.B.class, "b"), new TypePattern(I.A.class, "a")), 3),
+          new Case(new RecordPattern(Foo.class, new TypePattern(I.B.class, "b"), new TypePattern(I.B.class, "b2")), 4)
           )
       );
       root.find(Foo.class, "i1").setTotal();
@@ -248,10 +302,10 @@ public class PatternTreesTest {
       //   case Foo(B(int y), B(int y2)) -> 4
       // }
       var root = PatternTrees.createTree(Foo.class, List.of(
-          new Case(new RecordPattern(Foo.class, List.of(new RecordPattern(I.A.class, List.of(new TypePattern(int.class, "x"))), new RecordPattern(I.A.class, List.of(new TypePattern(int.class, "x2"))))), 1),
-          new Case(new RecordPattern(Foo.class, List.of(new RecordPattern(I.A.class, List.of(new TypePattern(int.class, "x"))), new RecordPattern(I.B.class, List.of(new TypePattern(int.class, "y"))))), 2),
-          new Case(new RecordPattern(Foo.class, List.of(new RecordPattern(I.B.class, List.of(new TypePattern(int.class, "y"))), new RecordPattern(I.A.class, List.of(new TypePattern(int.class, "x"))))), 3),
-          new Case(new RecordPattern(Foo.class, List.of(new RecordPattern(I.B.class, List.of(new TypePattern(int.class, "y"))), new RecordPattern(I.B.class, List.of(new TypePattern(int.class, "y2"))))), 4)
+          new Case(new RecordPattern(Foo.class, new RecordPattern(I.A.class, new TypePattern(int.class, "x")), new RecordPattern(I.A.class, new TypePattern(int.class, "x2"))), 1),
+          new Case(new RecordPattern(Foo.class, new RecordPattern(I.A.class, new TypePattern(int.class, "x")), new RecordPattern(I.B.class, new TypePattern(int.class, "y"))), 2),
+          new Case(new RecordPattern(Foo.class, new RecordPattern(I.B.class, new TypePattern(int.class, "y")), new RecordPattern(I.A.class, new TypePattern(int.class, "x"))), 3),
+          new Case(new RecordPattern(Foo.class, new RecordPattern(I.B.class, new TypePattern(int.class, "y")), new RecordPattern(I.B.class, new TypePattern(int.class, "y2"))), 4)
           )
       );
       root.find(Foo.class, "i1").setTotal();
@@ -305,7 +359,7 @@ public class PatternTreesTest {
       //   case Foo foo2 -> 2
       // }
       var root = PatternTrees.createTree(Foo.class, List.of(
-              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(String.class, "s"))), 1),
+              new Case(new RecordPattern(Foo.class, new TypePattern(String.class, "s")), 1),
               new Case(new TypePattern(Foo.class, "foo2"), 2)
           )
       );
@@ -338,7 +392,7 @@ public class PatternTreesTest {
       //   case Object o2 -> 3
       // }
       var root = PatternTrees.createTree(Object.class, List.of(
-              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(String.class, "s"))), 1),
+              new Case(new RecordPattern(Foo.class, new TypePattern(String.class, "s")), 1),
               new Case(new TypePattern(Foo.class, "foo"), 2),
               new Case(new TypePattern(Object.class, "o2"), 3)
           )
@@ -354,6 +408,9 @@ public class PatternTreesTest {
             String r3 = (String) r2;
             return call 1(r3);
           }
+        }
+        if r0 == null {
+          Foo r1 = (Foo) r0;
           return call 2(r1);
         }
         return call 3(r0);
@@ -376,7 +433,7 @@ public class PatternTreesTest {
       //   case Object o2 -> 3
       // }
       var root = PatternTrees.createTree(Object.class, List.of(
-              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(I.A.class, "a"))), 1),
+              new Case(new RecordPattern(Foo.class, new TypePattern(I.A.class, "a")), 1),
               new Case(new TypePattern(Object.class, "o2"), 2)
           )
       );

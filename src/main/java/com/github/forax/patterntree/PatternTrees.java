@@ -35,6 +35,7 @@ public class PatternTrees {
 
     int index = UNINITIALIZED;
     boolean total;
+    boolean disallowNull;
     boolean typeBinding;
     boolean recordBinding;
 
@@ -48,6 +49,7 @@ public class PatternTrees {
           ", componentNode=" + componentNode +
           ", index=" + index +
           ", total=" + total +
+          ", disallowNull=" + disallowNull +
           ", typeBinding=" + typeBinding +
           ", recordBinding=" + recordBinding +
           '}';
@@ -63,13 +65,19 @@ public class PatternTrees {
       requireNonNull(pattern);
       return switch (pattern) {
         case ParenthesizedPattern parenthesizedPattern -> insert(parenthesizedPattern.pattern());
-        case TypePattern typePattern -> map.computeIfAbsent(typePattern.type(), __ -> new Node(typePattern.type(), null, null)).setTypeBinding(true);
+        case TypePattern typePattern -> {
+          var targetType = typePattern.type();
+          var node = map.get(targetType);
+          var type = (node != null && node.disallowNull)? null: targetType;
+          yield map.computeIfAbsent(type, __ -> new Node(targetType, null, null)).setTypeBinding(true);
+        }
         case RecordPattern recordPattern -> {
           var type = recordPattern.type();
           var components = type.getRecordComponents();
           var patterns = recordPattern.patterns();
 
           var first = map.computeIfAbsent(type, __ -> new Node(type, null, null)).setRecordBinding(recordPattern.identifier().isPresent());
+          first.disallowNull = true;
           var node = first;
 
           for (int i = 0; i < components.length; i++) {
@@ -130,7 +138,7 @@ public class PatternTrees {
             }
             yield child;
           }
-          case Class<?> type -> {
+          case null, Class<?> type -> {
             var child = node.map.get(type);
             if (child == null) {
               throw new IllegalArgumentException("null child for type " + type.getName());
@@ -144,6 +152,9 @@ public class PatternTrees {
     }
 
     private static String simpleName(Class<?> clazz) {
+      if (clazz == null) {
+        return "null";
+      }
       var name = clazz.getName();
       var index = name.lastIndexOf('.');
       var index2 = name.lastIndexOf('$');
@@ -188,7 +199,7 @@ public class PatternTrees {
         builder.append("""
             if %s != null {
             """.formatted(r(varnum)).indent(depth));
-        notNull = true;
+        notNull = true;  // will be set to false in the next test
         depth += 2;
       }
 
@@ -209,7 +220,7 @@ public class PatternTrees {
 
         var typename = simpleName(type);
         if (!iterator.hasNext()) { // last node
-          if (type == targetClass) {
+          if (type == targetClass || type == null) {
             // do nothing
             scope.set(this, varnum);
             nextNode.toCode(builder, depth, varnum, notNull, scope, bindings);
@@ -234,6 +245,26 @@ public class PatternTrees {
             nextNode.toCode(builder, depth, varnum + 1, true, scope, bindings);
             continue;
           }
+        }
+        if (type == null) {
+          var targetClassName = simpleName(nextNode.targetClass);
+          builder.append("""
+                if %s == null {
+                  %s %s = (%s) %s;
+                """.formatted(r(varnum), targetClassName, r(varnum + 1), targetClassName, r(varnum)).indent(depth));
+          scope.set(this, varnum + 1);
+          nextNode.toCode(builder, depth + 2, varnum + 1, false, scope, bindings);
+          builder.append("}\n".indent(depth));
+          continue;
+        }
+        if (type == targetClass) {
+          builder.append("""
+                if %s != null {
+                """.formatted(r(varnum)));
+          scope.set(this, varnum);
+          nextNode.toCode(builder, depth + 2, varnum, true, scope, bindings);
+          builder.append("}\n".indent(depth));
+          continue;
         }
         builder.append("""
             if %s instanceof %s {

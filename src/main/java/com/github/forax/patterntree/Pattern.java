@@ -40,6 +40,9 @@ public sealed interface Pattern {
     public RecordPattern(Class<? extends Record> type, List<Pattern> patterns) {
       this(type, patterns, Optional.empty());
     }
+    public RecordPattern(Class<? extends Record> type, Pattern... patterns) {
+      this(type, List.of(patterns));
+    }
 
     public RecordPattern {
       requireNonNull(type);
