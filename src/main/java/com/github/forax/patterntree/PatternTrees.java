@@ -29,22 +29,24 @@ public class PatternTrees {
     static final int UNINITIALIZED = Integer.MIN_VALUE;
 
     final Class<?> targetClass;
+    boolean isRecord;
     final LinkedHashMap<Class<?>, Node> map = new LinkedHashMap<>();
-
     final RecordComponent component;
+
     final Node componentSource;
     Node componentNode;
 
     int index = UNINITIALIZED;
     List<Node> bindingNodes;
+
     boolean total;
-    boolean disallowNull;
 
 
     @Override
     public String toString() {
       return "Node{" +
           "targetClass=" + targetClass +
+          ", isRecord=" + isRecord +
           ", map=" + map +
           ", component=" + component +
           //", componentSource=" + componentSource +
@@ -52,7 +54,6 @@ public class PatternTrees {
           ", index=" + index +
           //", bindingNodes=" + bindingNodes +
           ", total=" + total +
-          ", disallowNull=" + disallowNull +
           '}';
     }
 
@@ -69,7 +70,7 @@ public class PatternTrees {
         case TypePattern typePattern -> {
           var targetType = typePattern.type();
           var node = map.get(targetType);
-          var type = (node != null && node.disallowNull)? null: targetType;
+          var type = (node != null && node.isRecord)? null: targetType;
           yield map.computeIfAbsent(type, __ -> new Node(targetType, null, null))
               .addToBindingNodes(bindingNodes, !typePattern.identifier().equals("_"));
         }
@@ -79,7 +80,7 @@ public class PatternTrees {
           var patterns = recordPattern.patterns();
 
           var first = map.computeIfAbsent(type, __ -> new Node(type, null, null));
-          first.disallowNull = true;
+          first.isRecord = true;
           var node = first;
 
           for (int i = 0; i < components.length; i++) {
