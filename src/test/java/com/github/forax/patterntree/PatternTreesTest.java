@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -94,6 +95,91 @@ public class PatternTreesTest {
           I r3 = r0.i2();
           return call 4(r2, r3);
           """, root.toCode());
+    }
+  }
+
+  @Nested
+  class AnyPattern {
+    record Foo(int x) {}
+
+    @Test
+    public void createTree() {
+      // Object o = ...
+      // switch(o) {
+      //   case Foo(int _) -> 1
+      //   case Object _ -> 2
+      // }
+      var root = PatternTrees.createTree(Object.class, List.of(
+              new Case(new RecordPattern(Foo.class, new TypePattern(int.class, "_")), 1),
+              new Case(new TypePattern(Object.class, "_"), 2)
+          )
+      );
+
+      System.out.println(Mermaid.toMermaidJS(root));
+
+      assertEquals("""
+        if r0 instanceof Foo {
+          Foo r1 = (Foo) r0;
+          int r2 = r1.x();
+          return call 1();
+        }
+        return call 2();
+        """, root.toCode());
+    }
+  }
+
+  @Nested
+  class AnyPatternWithSharing {
+    record Foo(int x, Object o) {}
+
+    @Test
+    public void createTree() {
+      // Foo foo = ...
+      // switch(foo) {
+      //   case Foo(int _, String s) -> 1
+      //   case Object _ -> 2
+      // }
+      var root = PatternTrees.createTree(Foo.class, List.of(
+          new Case(new RecordPattern(Foo.class, new TypePattern(int.class, "_"), new TypePattern(String.class, "s")), 1),
+          new Case(new RecordPattern(Foo.class, new TypePattern(int.class, "x"), new TypePattern(Object.class, "_")), 2)
+          )
+      );
+
+      System.out.println(Mermaid.toMermaidJS(root));
+
+      assertEquals("""
+        int r1 = r0.x();
+        Object r2 = r0.o();
+        if r2 instanceof String {
+          String r3 = (String) r2;
+          return call 1(r3);
+        }
+        return call 2(r1);
+        """, root.toCode());
+    }
+  }
+
+  @Nested
+  class NamedRecordPattern {
+    record Foo(int x) {}
+
+    @Test
+    public void createTree() {
+      // Foo foo = ...
+      // switch(foo) {
+      //   case Foo(int x) foo -> 1
+      // }
+      var root = PatternTrees.createTree(Foo.class, List.of(
+              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(int.class, "x")), Optional.of("foo")), 1)
+          )
+      );
+
+      System.out.println(Mermaid.toMermaidJS(root));
+
+      assertEquals("""
+        int r1 = r0.x();
+        return call 1(r1, r0);
+        """, root.toCode());
     }
   }
 
