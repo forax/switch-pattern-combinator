@@ -103,7 +103,7 @@ public class Mermaid {
 
     if (node.componentNode != null) {
       var nextId = env.id(node.componentNode);
-      var label = "(" + distance(node.componentNode.componentSource, node) + ")." + node.componentNode.component.getName();
+      var label = distance(node.componentNode.componentSource, node) + "." + node.componentNode.component.getName();
       builder.append("""
             id%d-- \"%s\" -->id%d
           """.formatted(id, label, nextId));
