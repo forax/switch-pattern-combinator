@@ -36,12 +36,10 @@ public class PatternTrees {
     Node componentNode;
 
     int index = UNINITIALIZED;
+    List<Node> bindingNodes;
     boolean total;
     boolean disallowNull;
-    boolean typeBinding;
-    boolean recordBinding;
 
-    List<Node> bindingNodes;
 
     @Override
     public String toString() {
@@ -52,10 +50,9 @@ public class PatternTrees {
           //", componentSource=" + componentSource +
           ", componentNode=" + componentNode +
           ", index=" + index +
+          //", bindingNodes=" + bindingNodes +
           ", total=" + total +
           ", disallowNull=" + disallowNull +
-          ", typeBinding=" + typeBinding +
-          ", recordBinding=" + recordBinding +
           '}';
     }
 
@@ -74,17 +71,14 @@ public class PatternTrees {
           var node = map.get(targetType);
           var type = (node != null && node.disallowNull)? null: targetType;
           yield map.computeIfAbsent(type, __ -> new Node(targetType, null, null))
-              .setTypeBinding(true)
-              .addToBindingNodes(bindingNodes, true);
+              .addToBindingNodes(bindingNodes, !typePattern.identifier().equals("_"));
         }
         case RecordPattern recordPattern -> {
           var type = recordPattern.type();
           var components = type.getRecordComponents();
           var patterns = recordPattern.patterns();
 
-          var first = map.computeIfAbsent(type, __ -> new Node(type, null, null))
-              .setRecordBinding(recordPattern.identifier().isPresent())
-              .addToBindingNodes(bindingNodes, recordPattern.identifier().isPresent());
+          var first = map.computeIfAbsent(type, __ -> new Node(type, null, null));
           first.disallowNull = true;
           var node = first;
 
@@ -100,19 +94,11 @@ public class PatternTrees {
             }
             node = child.insert(componentPattern, bindingNodes);
           }
+
+          first.addToBindingNodes(bindingNodes, recordPattern.identifier().filter(id -> !id.equals("_")).isPresent());
           yield node;
         }
       };
-    }
-
-    public Node setTypeBinding(boolean typeBinding) {
-      this.typeBinding |= typeBinding;
-      return this;
-    }
-
-    public Node setRecordBinding(boolean recordBinding) {
-      this.recordBinding |= recordBinding;
-      return this;
     }
 
     public Node addToBindingNodes(List<Node> bindingNodes, boolean isABinding) {
@@ -127,7 +113,7 @@ public class PatternTrees {
         throw new IllegalStateException("index already set");
       }
       this.index = index;
-      this.bindingNodes = bindingNodes;
+      this.bindingNodes = List.copyOf(bindingNodes);
     }
 
     public void setTotal() {
@@ -179,18 +165,12 @@ public class PatternTrees {
 
     public String toCode() {
       var builder = new StringBuilder();
-      toCode(builder, 0, 0, false, new Scope(), List.of());
+      toCode(builder, 0, 0, false, new Scope());
       return builder.toString();
     }
 
     private static String r(int varnum) {
       return "r" + varnum;
-    }
-
-    private static List<String> append(List<String> bindings, String name) {
-      var list = new ArrayList<>(bindings);
-      list.add(name);
-      return List.copyOf(list);
     }
 
     private static class Scope {
@@ -209,30 +189,14 @@ public class PatternTrees {
       }
     }
 
-    private void toCode(StringBuilder builder, int depth, int varnum, boolean notNull, Scope scope, List<String> bindings) {
-      if (typeBinding && (!recordBinding && index == UNINITIALIZED)) {
-        bindings = append(bindings, r(varnum));
-      }
-
+    private void toCode(StringBuilder builder, int depth, int varnum, boolean notNull, Scope scope) {
       if (index != UNINITIALIZED) {
-        // ???
         scope.set(this, varnum);
 
-        if (typeBinding && !recordBinding) {
-          bindings = append(bindings, r(varnum));
-        }
-
-        //System.err.println(bindingNodes.stream().map(n -> n.targetClass).toList());
         var bindingText = bindingNodes.stream().map(node -> r(scope.get(node))).collect(Collectors.joining(", "));
-        //System.err.println("// bindings " + bindingText + " " + bindings);
-
-        if (!bindingText.equals(String.join(", ", bindings))) {
-          throw new IllegalStateException("bad match");
-        }
-
         builder.append("""
           return call %d(%s);
-          """.formatted(index, String.join(", ", bindings)).indent(depth));
+          """.formatted(index, bindingText).indent(depth));
         return;
       }
 
@@ -256,7 +220,7 @@ public class PatternTrees {
           if (type == targetClass || type == null) {
             // do nothing
             scope.set(this, varnum);
-            nextNode.toCode(builder, depth, varnum, notNull, scope, bindings);
+            nextNode.toCode(builder, depth, varnum, notNull, scope);
             continue;
           }
           if (total) {    // sealed and total
@@ -275,7 +239,7 @@ public class PatternTrees {
                 %s %s = (%s) %s;    // catch(CCE) -> ICCE
                 """.formatted(typename, r(varnum + 1), typename, r(varnum)).indent(depth));
             scope.set(this, varnum + 1);
-            nextNode.toCode(builder, depth, varnum + 1, true, scope, bindings);
+            nextNode.toCode(builder, depth, varnum + 1, true, scope);
             continue;
           }
         }
@@ -286,7 +250,7 @@ public class PatternTrees {
                   %s %s = (%s) %s;
                 """.formatted(r(varnum), targetClassName, r(varnum + 1), targetClassName, r(varnum)).indent(depth));
           scope.set(this, varnum + 1);
-          nextNode.toCode(builder, depth + 2, varnum + 1, false, scope, bindings);
+          nextNode.toCode(builder, depth + 2, varnum + 1, false, scope);
           builder.append("}\n".indent(depth));
           continue;
         }
@@ -295,7 +259,7 @@ public class PatternTrees {
                 if %s != null {
                 """.formatted(r(varnum)));
           scope.set(this, varnum);
-          nextNode.toCode(builder, depth + 2, varnum, true, scope, bindings);
+          nextNode.toCode(builder, depth + 2, varnum, true, scope);
           builder.append("}\n".indent(depth));
           continue;
         }
@@ -304,13 +268,13 @@ public class PatternTrees {
               %s %s = (%s) %s;
             """.formatted(r(varnum), typename, typename, r(varnum + 1), typename, r(varnum)).indent(depth));
         scope.set(this, varnum + 1);
-        nextNode.toCode(builder, depth + 2, varnum + 1, true, scope, bindings);
+        nextNode.toCode(builder, depth + 2, varnum + 1, true, scope);
         builder.append("}\n".indent(depth));
       }
 
       if (componentNode != null) {
         scope.set(this, varnum);
-        componentNode.toCode(builder, depth, varnum, notNull, scope, bindings);
+        componentNode.toCode(builder, depth, varnum, notNull, scope);
       }
     }
   }

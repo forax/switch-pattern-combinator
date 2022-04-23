@@ -41,9 +41,9 @@ public class Mermaid {
 
     var style = Stream.of("")
         .<String>mapMulti((__, consumer) -> {
-          if (node.typeBinding || node.recordBinding) {
-            consumer.accept("stroke-dasharray: 5 5");
-          }
+          //if (node.typeBinding || node.recordBinding) {
+          //  consumer.accept("stroke-dasharray: 5 5");
+          //}
           if (node.total) {
             consumer.accept("stroke-width: 4px");
           }
