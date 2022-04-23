@@ -9,9 +9,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.joining;
 
 public class PatternTrees {
   public static Node createTree(Class<?> targetType, List<Case> items) {
@@ -193,11 +193,10 @@ public class PatternTrees {
     private void toCode(StringBuilder builder, int depth, int varnum, boolean notNull, Scope scope) {
       if (index != UNINITIALIZED) {
         scope.set(this, varnum);
-
-        var bindingText = bindingNodes.stream().map(node -> r(scope.get(node))).collect(Collectors.joining(", "));
+        var bindings = bindingNodes.stream().map(node -> r(scope.get(node))).collect(joining(", "));
         builder.append("""
           return call %d(%s);
-          """.formatted(index, bindingText).indent(depth));
+          """.formatted(index, bindings).indent(depth));
         return;
       }
 
