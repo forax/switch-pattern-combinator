@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 
@@ -18,7 +19,8 @@ public class PatternTrees {
 
     var root = new Node(targetType, null, null);
     for(var item: items) {
-      root.insert(item.pattern()).setIndex(item.index());
+      var bindingNodes = new ArrayList<Node>();
+      root.insert(item.pattern(), bindingNodes).setIndex(item.index(), bindingNodes);
     }
     return root;
   }
@@ -38,6 +40,8 @@ public class PatternTrees {
     boolean disallowNull;
     boolean typeBinding;
     boolean recordBinding;
+
+    List<Node> bindingNodes;
 
     @Override
     public String toString() {
@@ -61,22 +65,26 @@ public class PatternTrees {
       this.componentSource = componentSource;
     }
 
-    public Node insert(Pattern pattern) {
+    public Node insert(Pattern pattern, List<Node> bindingNodes) {
       requireNonNull(pattern);
       return switch (pattern) {
-        case ParenthesizedPattern parenthesizedPattern -> insert(parenthesizedPattern.pattern());
+        case ParenthesizedPattern parenthesizedPattern -> insert(parenthesizedPattern.pattern(), bindingNodes);
         case TypePattern typePattern -> {
           var targetType = typePattern.type();
           var node = map.get(targetType);
           var type = (node != null && node.disallowNull)? null: targetType;
-          yield map.computeIfAbsent(type, __ -> new Node(targetType, null, null)).setTypeBinding(true);
+          yield map.computeIfAbsent(type, __ -> new Node(targetType, null, null))
+              .setTypeBinding(true)
+              .addToBindingNodes(bindingNodes, true);
         }
         case RecordPattern recordPattern -> {
           var type = recordPattern.type();
           var components = type.getRecordComponents();
           var patterns = recordPattern.patterns();
 
-          var first = map.computeIfAbsent(type, __ -> new Node(type, null, null)).setRecordBinding(recordPattern.identifier().isPresent());
+          var first = map.computeIfAbsent(type, __ -> new Node(type, null, null))
+              .setRecordBinding(recordPattern.identifier().isPresent())
+              .addToBindingNodes(bindingNodes, recordPattern.identifier().isPresent());
           first.disallowNull = true;
           var node = first;
 
@@ -90,7 +98,7 @@ public class PatternTrees {
             } else {
               child = node.componentNode;
             }
-            node = child.insert(componentPattern);
+            node = child.insert(componentPattern, bindingNodes);
           }
           yield node;
         }
@@ -107,11 +115,19 @@ public class PatternTrees {
       return this;
     }
 
-    public void setIndex(int index) {
+    public Node addToBindingNodes(List<Node> bindingNodes, boolean isABinding) {
+      if (isABinding) {
+        bindingNodes.add(this);
+      }
+      return this;
+    }
+
+    public void setIndex(int index, List<Node> bindingNodes) {
       if (this.index != UNINITIALIZED) {
         throw new IllegalStateException("index already set");
       }
       this.index = index;
+      this.bindingNodes = bindingNodes;
     }
 
     public void setTotal() {
@@ -185,7 +201,11 @@ public class PatternTrees {
       }
 
       public int get(Node node) {
-        return map.get(node);
+        var varnum = map.get(node);
+        if (varnum == null) {
+          throw new IllegalStateException("no varnum for node " + node);
+        }
+        return varnum;
       }
     }
 
@@ -195,9 +215,21 @@ public class PatternTrees {
       }
 
       if (index != UNINITIALIZED) {
+        // ???
+        scope.set(this, varnum);
+
         if (typeBinding && !recordBinding) {
           bindings = append(bindings, r(varnum));
         }
+
+        //System.err.println(bindingNodes.stream().map(n -> n.targetClass).toList());
+        var bindingText = bindingNodes.stream().map(node -> r(scope.get(node))).collect(Collectors.joining(", "));
+        //System.err.println("// bindings " + bindingText + " " + bindings);
+
+        if (!bindingText.equals(String.join(", ", bindings))) {
+          throw new IllegalStateException("bad match");
+        }
+
         builder.append("""
           return call %d(%s);
           """.formatted(index, String.join(", ", bindings)).indent(depth));
