@@ -194,13 +194,14 @@ public class PatternTrees {
         bindings = append(bindings, r(varnum));
       }
 
-      var unprotectedAccess = index != UNINITIALIZED && !notNull && componentNode != null && componentNode.componentSource == this;
-      if (unprotectedAccess) {
+      if (index != UNINITIALIZED) {
+        if (typeBinding && !recordBinding) {
+          bindings = append(bindings, r(varnum));
+        }
         builder.append("""
-            if %s != null {
-            """.formatted(r(varnum)).indent(depth));
-        notNull = true;  // will be set to false in the next test
-        depth += 2;
+          return call %d(%s);
+          """.formatted(index, String.join(", ", bindings)).indent(depth));
+        return;
       }
 
       if (componentSource != null) {
@@ -278,19 +279,6 @@ public class PatternTrees {
       if (componentNode != null) {
         scope.set(this, varnum);
         componentNode.toCode(builder, depth, varnum, notNull, scope, bindings);
-      }
-
-      if (unprotectedAccess) {
-        depth -= 2;
-        builder.append("}\n".indent(depth));
-      }
-      if (index != UNINITIALIZED) {
-        if (typeBinding && !recordBinding) {
-          bindings = append(bindings, r(varnum));
-        }
-        builder.append("""
-          return call %d(%s);
-          """.formatted(index, String.join(", ", bindings)).indent(depth));
       }
     }
   }
