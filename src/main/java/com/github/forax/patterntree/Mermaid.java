@@ -3,6 +3,7 @@ package com.github.forax.patterntree;
 import com.github.forax.patterntree.PatternTrees.Node;
 
 import java.util.HashMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -36,6 +37,26 @@ public class Mermaid {
     return name.substring(Math.max(index, index2) + 1);
   }
 
+  private static int distance(Node start, Node end) {
+    if (start == end) {
+      return 0;
+    }
+    for(var n: start.map.values()) {
+      var d = distance(n, end);
+      if (d != -1) {
+        return 1 + d;
+      }
+    }
+    var n = start.componentNode;
+    if (n != null) {
+      var d = distance(n, end);
+      if (d != -1) {
+        return 1 + d;
+      }
+    }
+    return -1;
+  }
+
   private static void toMermaidJS(Node node, StringBuilder builder, Env env) {
     var id = env.id(node);
 
@@ -61,22 +82,16 @@ public class Mermaid {
             consumer.accept(simpleName(node.targetClass));
           }
           if (node.index != Node.UNINITIALIZED) {
-            consumer.accept("index " + node.index);
+            var bindings = node.bindingNodes.stream().map(n -> "" + distance(n, node)).collect(joining(","));
+            consumer.accept(node.index + "(" + bindings + ')');
           }
 
         })
         .collect(joining(", "));
 
     builder.append("""
-              id%d(%s)
+              id%d("%s")
             """.formatted(id, text));
-
-    if (node.componentSource != null) {
-      var sourceId = env.id(node.componentSource);
-      builder.append("""
-              id%d-. source .->id%d
-            """.formatted(id, sourceId));
-    }
 
     node.map.forEach((type, nextNode) -> {
       var nextId = env.id(nextNode);
@@ -88,9 +103,9 @@ public class Mermaid {
 
     if (node.componentNode != null) {
       var nextId = env.id(node.componentNode);
-      var label = node.componentNode.component.getName();
+      var label = "(" + distance(node, node.componentNode.componentSource) + ")." + node.componentNode.component.getName();
       builder.append("""
-            id%d-- %s -->id%d
+            id%d-- \"%s\" -->id%d
           """.formatted(id, label, nextId));
     }
 
