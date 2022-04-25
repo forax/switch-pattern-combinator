@@ -170,7 +170,7 @@ public class PatternTreesTest {
       //   case Foo(int x) foo -> 1
       // }
       var root = PatternTrees.createTree(Foo.class, List.of(
-              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(int.class, "x")), Optional.of("foo")), 1)
+              new Case(new RecordPattern(Foo.class, List.of(new TypePattern(int.class, "x")), "foo"), 1)
           )
       );
 
@@ -197,8 +197,8 @@ public class PatternTreesTest {
       //   case Object o3 -> 3
       // }
       var root = PatternTrees.createTree(Object.class, List.of(
-              new Case(new RecordPattern(Foo.class, new RecordPattern(Bar.class, List.of(new TypePattern(int.class, "x"))), new TypePattern(Integer.class, "i")), 1),
-              new Case(new RecordPattern(Foo.class, new RecordPattern(Bar.class, List.of(new TypePattern(int.class, "y"))), new TypePattern(Object.class, "o2")), 2),
+              new Case(new RecordPattern(Foo.class, new RecordPattern(Bar.class, new TypePattern(int.class, "x")), new TypePattern(Integer.class, "i")), 1),
+              new Case(new RecordPattern(Foo.class, new RecordPattern(Bar.class, new TypePattern(int.class, "y")), new TypePattern(Object.class, "o2")), 2),
               new Case(new TypePattern(Object.class, "o3"), 3)
           )
       );

@@ -68,10 +68,10 @@ public class PatternTrees {
       return switch (pattern) {
         case ParenthesizedPattern parenthesizedPattern -> insert(parenthesizedPattern.pattern(), bindingNodes);
         case TypePattern typePattern -> {
-          var targetType = typePattern.type();
-          var node = map.get(targetType);
-          var type = (node != null && node.isRecord)? null: targetType;
-          yield map.computeIfAbsent(type, __ -> new Node(targetType, null, null))
+          var type = typePattern.type();
+          var node = map.get(type);
+          var nodeType = (node != null && node.isRecord)? null: type;
+          yield map.computeIfAbsent(nodeType, __ -> new Node(type, null, null))
               .addToBindingNodes(bindingNodes, !typePattern.identifier().equals("_"));
         }
         case RecordPattern recordPattern -> {
@@ -96,13 +96,13 @@ public class PatternTrees {
             node = child.insert(componentPattern, bindingNodes);
           }
 
-          first.addToBindingNodes(bindingNodes, recordPattern.identifier().filter(id -> !id.equals("_")).isPresent());
+          first.addToBindingNodes(bindingNodes, !recordPattern.identifier().equals("_"));
           yield node;
         }
       };
     }
 
-    public Node addToBindingNodes(List<Node> bindingNodes, boolean isABinding) {
+    public Node addToBindingNodes(List<? super Node> bindingNodes, boolean isABinding) {
       if (isABinding) {
         bindingNodes.add(this);
       }

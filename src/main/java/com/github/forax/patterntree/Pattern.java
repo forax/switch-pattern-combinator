@@ -1,7 +1,6 @@
 package com.github.forax.patterntree;
 
 import java.util.List;
-import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
@@ -36,12 +35,9 @@ public sealed interface Pattern {
     }
   }
 
-  record RecordPattern(Class<? extends Record> type, List<Pattern> patterns, Optional<String> identifier) implements Pattern {
-    public RecordPattern(Class<? extends Record> type, List<Pattern> patterns) {
-      this(type, patterns, Optional.empty());
-    }
+  record RecordPattern(Class<? extends Record> type, List<Pattern> patterns, String identifier) implements Pattern {
     public RecordPattern(Class<? extends Record> type, Pattern... patterns) {
-      this(type, List.of(patterns));
+      this(type, List.of(patterns), "_");
     }
 
     public RecordPattern {
