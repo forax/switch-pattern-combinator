@@ -3,7 +3,6 @@ package com.github.forax.patterntree;
 import com.github.forax.patterntree.PatternTrees.Node;
 
 import java.util.HashMap;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
@@ -62,9 +61,9 @@ public class Mermaid {
 
     var style = Stream.of("")
         .<String>mapMulti((__, consumer) -> {
-          //if (node.typeBinding || node.recordBinding) {
-          //  consumer.accept("stroke-dasharray: 5 5");
-          //}
+          if (node.index != Node.UNINITIALIZED) {
+            consumer.accept("stroke-dasharray: 5 5");
+          }
           if (node.total) {
             consumer.accept("stroke-width: 4px");
           }
@@ -105,7 +104,7 @@ public class Mermaid {
       var nextId = env.id(node.componentNode);
       var label = distance(node.componentNode.componentSource, node) + "." + node.componentNode.component.getName();
       builder.append("""
-            id%d-- \"%s\" -->id%d
+            id%d-- "%s" -->id%d
           """.formatted(id, label, nextId));
     }
 
