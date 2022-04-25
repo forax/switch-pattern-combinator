@@ -15,8 +15,6 @@ import static java.util.stream.Collectors.joining;
 
 public class PatternTrees {
   public static Node createTree(Class<?> targetType, List<Case> items) {
-    items = new ArrayList<>(items);
-
     var root = new Node(targetType, null, null);
     for(var item: items) {
       var bindingNodes = new ArrayList<Node>();
