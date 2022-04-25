@@ -9,7 +9,11 @@ import static java.util.stream.Collectors.joining;
 
 // Generates diagram using mermaid-js spec https://mermaid-js.github.io
 //   Live editor: https://mermaid-js.github.io/mermaid-live-editor
-public class Mermaid {
+public final class Mermaid {
+  private Mermaid() {
+    throw new AssertionError();
+  }
+
   public static String toMermaidJS(Node root) {
      var builder = new StringBuilder();
      builder.append("flowchart LR\n");

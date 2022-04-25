@@ -13,7 +13,11 @@ import java.util.List;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
-public class PatternTrees {
+public final class PatternTrees {
+  private PatternTrees() {
+    throw new AssertionError();
+  }
+
   public static Node createTree(Class<?> targetType, List<Case> items) {
     var root = new Node(targetType, null, null);
     for(var item: items) {
