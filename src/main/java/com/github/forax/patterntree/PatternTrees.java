@@ -164,7 +164,7 @@ public class PatternTrees {
 
     public String toCode() {
       var builder = new StringBuilder();
-      toCode(builder, 0, 0, false, new Scope());
+      toCode(builder, 0, 0, new Scope());
       return builder.toString();
     }
 
@@ -188,7 +188,7 @@ public class PatternTrees {
       }
     }
 
-    private void toCode(StringBuilder builder, int depth, int varnum, boolean notNull, Scope scope) {
+    private void toCode(StringBuilder builder, int depth, int varnum, Scope scope) {
       if (index != UNINITIALIZED) {
         scope.set(this, varnum);
         var bindings = bindingNodes.stream().map(node -> r(scope.get(node))).collect(joining(", "));
@@ -203,7 +203,6 @@ public class PatternTrees {
         builder.append("""
             %s %s = %s.%s();
             """.formatted(simpleName(component.getType()), r(varnum + 1), r(input), component.getName()).indent(depth));
-        notNull = false;
         varnum++;
       }
 
@@ -218,26 +217,24 @@ public class PatternTrees {
           if (type == targetClass || type == null) {
             // do nothing
             scope.set(this, varnum);
-            nextNode.toCode(builder, depth, varnum, notNull, scope);
+            nextNode.toCode(builder, depth, varnum, scope);
             continue;
           }
           if (total) {    // sealed and total
-            if (!notNull) {  // null is in the remainder
-              if (type.isRecord() && type.getRecordComponents().length != 0) {
-                builder.append("""
-                      // implicit null check of %s
-                      """.formatted(r(varnum)).indent(depth));
-              } else {
-                builder.append("""
-                      requireNonNull(%s);  // null is a remainder
-                      """.formatted(r(varnum)).indent(depth));
-              }
+            if (type.isRecord() && type.getRecordComponents().length != 0) {
+              builder.append("""
+                    // implicit null check of %s
+                    """.formatted(r(varnum)).indent(depth));
+            } else {
+              builder.append("""
+                    requireNonNull(%s);  // null is a remainder
+                    """.formatted(r(varnum)).indent(depth));
             }
             builder.append("""
                 %s %s = (%s) %s;    // catch(CCE) -> ICCE
                 """.formatted(typename, r(varnum + 1), typename, r(varnum)).indent(depth));
             scope.set(this, varnum + 1);
-            nextNode.toCode(builder, depth, varnum + 1, true, scope);
+            nextNode.toCode(builder, depth, varnum + 1, scope);
             continue;
           }
         }
@@ -248,7 +245,7 @@ public class PatternTrees {
                   %s %s = (%s) %s;
                 """.formatted(r(varnum), targetClassName, r(varnum + 1), targetClassName, r(varnum)).indent(depth));
           scope.set(this, varnum + 1);
-          nextNode.toCode(builder, depth + 2, varnum + 1, false, scope);
+          nextNode.toCode(builder, depth + 2, varnum + 1, scope);
           builder.append("}\n".indent(depth));
           continue;
         }
@@ -257,7 +254,7 @@ public class PatternTrees {
                 if %s != null {
                 """.formatted(r(varnum)));
           scope.set(this, varnum);
-          nextNode.toCode(builder, depth + 2, varnum, true, scope);
+          nextNode.toCode(builder, depth + 2, varnum, scope);
           builder.append("}\n".indent(depth));
           continue;
         }
@@ -266,13 +263,13 @@ public class PatternTrees {
               %s %s = (%s) %s;
             """.formatted(r(varnum), typename, typename, r(varnum + 1), typename, r(varnum)).indent(depth));
         scope.set(this, varnum + 1);
-        nextNode.toCode(builder, depth + 2, varnum + 1, true, scope);
+        nextNode.toCode(builder, depth + 2, varnum + 1, scope);
         builder.append("}\n".indent(depth));
       }
 
       if (componentNode != null) {
         scope.set(this, varnum);
-        componentNode.toCode(builder, depth, varnum, notNull, scope);
+        componentNode.toCode(builder, depth, varnum, scope);
       }
     }
   }
