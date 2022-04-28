@@ -4,12 +4,12 @@ A prototype showing how to generate code for a switch on patterns
 We suppose that a list of patterns is valid and type-checked, and the goal is to generate
 a code compact, effective and raising descriptive exceptions/errors.
 
-Java requires switch to be exhaustive, either because there is a bottom type or because there is a sealed type,
-all subtypes are covered and there is no bottom type.
+Java requires switch to be exhaustive, either because there is a bottom type or because there is a sealed type
+and all subtypes are covered.
 
-There are two kinds of errors, either a value is null but the corresponding does not allow null or
-one of the class/record of a sealed hierarchy has changed between the compilation of the patterns
-and the execution at runtime.
+In order to avoid to have to specify what to do in case of null or if a type not present at compile time
+is present at runtime, Java has a notion of remainders which are the types that the users do not have
+to specify in terms of typechecking and that are handled automatically by the runtime.
 
 ### Naive Translation
 
@@ -38,9 +38,6 @@ switch(r0) {
 
 A naive translation is to generate each pattern as a cascade of `instanceof`
 (the pattern are numbered 1 to 4 in the code below).
-But that translation as several issues, the most important is that is it does not provide precise error messages,
-by example `new Foo(null, ...)` and `new Foo(new C(), ...)` both throws a `MatchException` and the user is let alone
-to figure the issue. The other issue is performance, instanceof on the same value being called multiple times.
 
 ```java
 A r1 = r0.i();
@@ -82,59 +79,68 @@ if (r1 instanceof B) {  // pattern 4
 throw new MatchException();
 ```
 
-We are proposing to throw a `NullPointerException` in the former case and `IncompatibleClassChangeError`
-in the later case. 
+That translation as several issues, the most important is that is it does not provide precise error messages,
+by example `new Foo(null, ...)` and `new Foo(new C(), ...)` both throws a `MatchException` and the user is let alone
+to figure the exact issue. The other issue is performance, for the same value instanceof with the same timr
+is called multiple times.
 
+We are proposing to improve the generation by first using a Decision Tree, a technique pioneered in the '90
+to share pattern computation  starting with the same prefix and altering the generated code to
+have the VM either produce a `NullPointerException` or a `IncompatibleClassChangeError` to help users
+to debug their code.
 
-And obviously we can still have the usual Java error,
-like `ClassCastException` in case of unsafe casts (the switch itself does not allow unsafe cast, but an
-unsafe cast can be done before entering the switch).
+And obviously we can still have the usual Java error, like `ClassCastException` in case of unsafe casts
+(the switch itself does not allow unsafe cast, but an unsafe cast can be done before entering the switch).
 
-For that, we are proposing to use a Decision Tree, a technique pioneered in the '90 to share pattern computation
-starting with the same prefix. Here is the decision tree for the switch defined above. 
+Here is the decision tree for the example above.
+
+A node correspond to a variable with a type. The first node, is the variable r0 with the type of
+the expression switched upon.
+There are 3 kind of nodes, nodes that process the value of the variable and the nodes that "calls"
+an index with the values of the bindings
+- a start node initialized with the value switched upon
+- an end node (the node with the dashed border), that contains an index of the case and a list of bindings
+  (each integer refers to the value of the preceding nodes).
+- a intermediary node (the nodes with solid border) has two kind of transitions,
+  - a transition that verifies a type (the link with a circle)
+  - a transition that computes an accessor (the link with an arrow), the receiver of the accessor
+    is an integer indicating the node containing the value.
+
+By example, ...
 
 ```mermaid
 flowchart LR
-  id0(Foo)
+  id0("Foo")
   id0-- Foo --oid1
-  id1(Foo)
-  id1-- i -->id2
+  id1("Foo")
+  id1-- "0.i" -->id2
   style id2 stroke-width: 4px
-  id2(I)
-  id2-. source .->id1
+  id2("I")
   id2-- A --oid3
   id2-- B --oid4
-  style id3 stroke-dasharray: 5 5
-  id3(A)
-  id3-- i2 -->id5
+  id3("A")
+  id3-- "2.i2" -->id5
   style id5 stroke-width: 4px
-  id5(I)
-  id5-. source .->id1
+  id5("I")
   id5-- A --oid6
-  id5-- B --oid7
-  style id6 stroke-dasharray: 5 5
-  id6(A, index 2)
-  id6-- x -->id8
-  id8(int)
-  id8-. source .->id6
-  id8-- int --oid9
-  style id9 stroke-dasharray: 5 5
-  id9(int, index 1)
-  id7(B)
-  id7-- s -->id10
-  id10(String)
-  id10-. source .->id7
-  id10-- String --oid11
-  style id11 stroke-dasharray: 5 5
-  id11(String, index 3)
-  style id4 stroke-dasharray: 5 5
-  id4(B)
-  id4-- i2 -->id12
-  id12(I)
-  id12-. source .->id1
-  id12-- I --oid13
-  style id13 stroke-dasharray: 5 5
-  id13(I, index 4)
+  id5-- null --oid7
+  id5-- B --oid8
+  id6("A")
+  id6-- "0.x" -->id9
+  id9("int")
+  id9-- int --oid10
+  id10("int, 1(4,0)")
+  id7("A, 2(2,0)")
+  id8("B")
+  id8-- "0.s" -->id11
+  id11("String")
+  id11-- String --oid12
+  id12("String, 3(4,0)")
+  id4("B")
+  id4-- "2.i2" -->id13
+  id13("I")
+  id13-- I --oid14
+  id14("I, 4(2,0)")
 ```
 
 Once the decision tree is build, we can generate a better codes by propagating properties like
@@ -151,10 +157,11 @@ if r1 instanceof A {
   I r3 = r0.i2();
   if r3 instanceof A {
     A r4 = (A) r3;
-    if r4 != null {
-      int r5 = r4.x();
-      return call 1(r2, r5);
-    }
+    int r5 = r4.x();
+    return call 1(r2, r5);
+  }
+  if r3 == null {
+    A r4 = (A) r3;
     return call 2(r2, r4);
   }
   // implicit null check of r3
@@ -174,9 +181,9 @@ return call 4(r2, r3);
 ### Patterns
 
 ```
-Pattern = TypePattern(type: Class, identifier: String)
-        | ParenthesizedPattern(pattern: Pattern)
-        | RecordPattern(type: Class, patterns: List<Pattern>, identifier: Optional<String>)
+Pattern = ParenthesizedPattern(pattern: Pattern)
+        | TypePattern(type: Class, identifier: String)
+        | RecordPattern(type: Class, patterns: List[Pattern], identifier: String)
         ;
 ```
 
@@ -200,40 +207,47 @@ both explicit checks and supplementary branch if possible.
 ## How to construct the Decision Tree
 // TODO
 
-4 kind of nodes
-- the initial node (input, target class, no component)
-- an intermediary node (input, target class, component)
-- an end node (input, no target class, index)
-- a node which both an intermediary and an end node (input, target class, component, index) 
 
 
 
 Algorithm in pseudo-code
 
 ```python
-class Node(targetClass: Class, componentPair: Tuple(RecordComponent, Node), binding: boolean)
-  dict: Dict<Class, Node>
+class Node(targetClass: Class, component: RecordComponent, componentSource: Node)
+  map: Dict[Class, Node]
+  componentNode: Node
   index: int or not initialized
+  bindingNodes: List[Node]
+  isRecord: boolean
 
-def insert(node: Node, pattern: Pattern, targetType: Class, componentPair: Tuple(RecordComponent, Node)) -> Node:
-  return switch(pattern):
-    case NullPattern(): return node.dict[null] = Node(targetType, componentPair, false)
-    case ParenthesizedPattern(p): return insert(p, targetType, componentPair)
-    case TypePattern(type, _): return node.dict[type] = Node(targetType, componentPair, true)
+def insert(node: Node, pattern: Pattern, bindingNodes: List<Node>) -> Node:
+  match pattern:
+    case ParenthesizedPattern(p):
+      return insert(node, p, bindingNodes)
+    case TypePattern(type, identifier):
+      n = node.map[type];
+      if (n != Null and n.isRecord)
+        result = node.map[Null] = Node(type, Null, Null)  
+      else
+        result = node.map[type] = Node(type, Null, Null)
+      bindingNodes.add(result) if identifier != "_"
+      return result; 
     case RecordPattern(type, patterns, identifier):
+      first = node.map[type] = Node(type, Null, Null)
+      first.isRecord = True
+      result = first
       var components = type.recordComponents
-      
-      # first node
-      if components is empty:
-        return node.dict[type] = Node(targetType, componentPair, identifier.isPresent)
-      var n = node.dict[type] = Node(components[0].type, (components[0], node), identifier.isPresent)
-      
-      # one node per record components
-      for index = 0 .. components.length - 1:
-        n = n.dict[p.type] = insert(patterns[index], components[index + 1].type, (components[index + 1], node))
-        
-      # last node
-      return n.dict[p.type] = insert(patterns[last], targetType, componentPair)
+      for index = 0 .. components.length:
+        component = components[i]
+        componentPattern = patterns[i];
+        if (result.componentNode == Null)
+          child = Node(component.type, component, first)
+          result.componentNode = child;
+        else
+          child = result.componentNode;
+        result = insert(child, componentPattern, bindingNode)
+      bindingNodes.add(first) if identifier != "_"
+      return result  
 
 ```
 
@@ -241,70 +255,76 @@ def insert(node: Node, pattern: Pattern, targetType: Class, componentPair: Tuple
 ```python
 class Case(pattern: Pattern, index: int)
 
-def Node createTree(targetType: Class, cases: List<Case>) -> Node:
-  var root = Node(targetType, (null, null), false);
-  for each case in cases:
-    insert(root, case.pattern, null, null, null).index = case.index
-  
+def Node createTree(targetType: Class, items: List<Case>) -> Node:
+  var root = Node(targetType, null, null);
+  for each item in items:
+    bindingNodes = List[Node]()
+    insert(root, case.pattern, bindingNodes).setIndex(item.index, bindingNodes) 
   return root;
-}      
+}
 ```
 
 ## How to generate the code from the Decision Tree
 
 ```python
-def toCode(node: Node, varnum: int, scope: Dict<Node, int>, bindings: List<String>):
-  if node.binding:
-    bindings = bindings.append(r(varnum))
-
+def toCode(node: Node, varnum: int, scope: Dict<Node, int>):
   # node with an index
   if node.index is initialized:
-    append("return call %d(%s);" % index, bindings.join(", "))
+    bindings = [scope[n] for n in node.bindingNodes]
+    append("return call %d(%s);" % index, bindings))
     return
-
-  # extract record component value from the back reference 
-  if component != null:
-    var input = scope[node.componentPair.node]
-    append("%s %s = %s.%s();" % component.type, r(varnum + 1), r(input), component.name)
-    varnum++;
-
-  for each transition(type, nextNode) in dict:
-    # type is null, do a nullcheck
-    if type == null:
-      append("if %s == null {" % r(varnum))
-      toCode(nextNode, varnum, scope, bindings)
-      append("}\n")
-      continue
-
-    # the code is different for the last transition
-    if last transition:
-      if type == node.targetClass:
-        # types are the same, no instanceof needed
-        scope[this] = varnum
-        toCode(nextNode, varnum, scope, bindings)
-        continue
-        
-      if node.targetClass.isSealed:
-        # type is sealed, if null is not handled, generate either an implicit or an explicit NPE
-        if node.dict does not contains null:  // null is in the remainder
-          if type.isRecord and type.recordComponents.length != 0:
-            append("// implicit null check of %s" % r(varnum))
-          else:
-            append("requireNonNull(%s);" % r(varnum))
-        
-        # generate a cast that fails if there is more subtypes than at compile time  
-        append("%s %s = (%s) %s;    // catch(CCE) -> ICCE" % typename, r(varnum + 1), typename, r(varnum))
-        scope[this] = varnum + 1
-        toCode(nextNode, varnum + 1, scope, bindings)
-        continue
-        
+  
+  # value = call the component accessor on the value of a preceding node 
+  if node.componentSource != Null:
+    input = scope[node.componentSource]
+    append("%s %s = %s.%s();" % node.component.type, varnum + 1, input, node.component.name)
+    varnum = varnum + 1
     
-    # otherwise generate an instanceof  
-    append("if %s instanceof %s {
-            %s %s = (%s) %s;" % r(varnum), typename, typename, r(varnum + 1), typename, r(varnum))
-    scope[this] = varnum + 1
-    toCode(nextNode, varnum + 1, scope, bindings)
-    append("}\n")
+  for (type, nextNode) in node.map:
+    if nextNode is last node:
+      if type == node.targetClass or type == Null:
+        # do nothing
+        scope[node] = varnum
+        toCode(nextNode, varnum, scope);
+        continue
+      if node.total:   # sealed and total
+        if type.isRecord and type.recordComponents.length != 0:
+          append("// implicit null check of %s" % varnum)
+        else  
+          append("requireNoNull(%s)" % varnum);
+        append("%s %s = (%s) %s;    // catch(CCE) -> ICCE" % type, varnum + 1, type, varnum)
+        scope[node] = varnum + 1
+        toCode(nextNode, varnum + 1, scope);
+        continue;
+    
+    # not the last transition
+    if type == Null:
+      append("""
+        if %s == null {
+          %s %s = (%s) %s;
+        """ % varnum, nextNode.targetClass, varnum + 1, nextNode.targetClass, varnum)
+      scope[node] = varnum + 1
+      toCode(nextNode, varnum + 1, scope)
+      append("}")
+      continue
+      
+    if type == node.targetClass:
+      append("if %s != null {" % varnum)
+      scope[node] = varnum
+      toCode(nextNode, varnum, scope)
+      continue
+      
+    append("""
+      if %s instanceof %s {
+        %s %s = (%s) %s;
+      """ % varnum, type, type, varnum + 1, type, varnum)
+    scope[node] = varnum + 1
+    toCode(nextNode, varnum + 1, scope)  
+    append("}")     
+  
+  if componentNode != Null:
+    scope[node] = varnum
+    toCode(componentNode, varnum, scope)
 ```
 
 ### Issues
@@ -317,279 +337,7 @@ Line numbers and debugging information
 
 ### Examples
 
-## case 1
 
-```java
-Object o = ...
-switch(o) {
-  case null -> 1
-  case String s -> 2
-  case Object o2 -> 3
-}
-```
-
-```mermaid
-flowchart LR
-  id0(Object)
-  id0-- null -->id1
-  id0-- String -->id2
-  id0-- Object -->id3
-  id1[index 1]
-  style id2 stroke-dasharray: 5 5
-  id2[index 2]
-  style id3 stroke-dasharray: 5 5
-  id3[index 3]
-```
-
-```java
-if r0 == null {
-  call 1();
-  return;
-}
-if r0 instanceof String {
-  String r1 = (String) r0;
-  call 2(r1);
-  return;
-}
-call 3(r0);
-return;
-```
-
-## case 2
-
-```java
-record Foo(Object o, Object o2) {}
-record Bar(int x) {}
-
-Object o = ...
-switch(o) {
-  case Foo(Bar(int x), Integer i) -> 1
-  case Foo(Bar(int y), Object o2) -> 2
-  case Object o3 -> 3
-}
-```
-
-```mermaid
-flowchart LR
-  id0(Object)
-  id0-- Foo -->id1
-  id0-- Object -->id2
-  id1(Object)
-  id1-. o .->id0
-  id1-- Bar -->id3
-  id3(int)
-  id3-. x .->id1
-  id3-- int -->id4
-  style id4 stroke-dasharray: 5 5
-  id4(Object)
-  id4-. o2 .->id0
-  id4-- Integer -->id5
-  id4-- Object -->id6
-  style id5 stroke-dasharray: 5 5
-  id5[index 1]
-  style id6 stroke-dasharray: 5 5
-  id6[index 2]
-  style id2 stroke-dasharray: 5 5
-  id2[index 3]
-```
-
-```java
-if r0 instanceof Foo {
-  Foo r1 = (Foo) r0;
-  Object r2 = r1.o();
-  if r2 instanceof Bar {
-    Bar r3 = (Bar) r2;
-    int r4 = r3.x();
-    Object r5 = r1.o2();
-    if r5 instanceof Integer {
-      Integer r6 = (Integer) r5;
-      call 1(r4, r6);
-      return;
-    }
-    call 2(r4, r5);
-    return;
-  }
-}
-call 3(r0);
-return;
-```
-
-## case 3
-
-```java
-sealed interface I {
-  final class A implements I {}
-  final class B implements I {}
-}
-record Foo(I i1, I i2) {}
-
-Foo foo = ...
-switch(foo) {
-  case Foo(A a, A a2) -> 1
-  case Foo(A a, B b) -> 2
-  case Foo(B b, A a) -> 3
-  case Foo(B b, B b2) -> 4
-}
-```
-
-```mermaid         
-flowchart LR
-  id0(Foo)
-  id0-- Foo -->id1
-  style id1 stroke-width: 4px
-  id1(I)
-  id1-. i1 .->id0
-  id1-- A -->id2
-  id1-- B -->id3
-  style id2 stroke-dasharray: 5 5,stroke-width: 4px
-  id2(I)
-  id2-. i2 .->id0
-  id2-- A -->id4
-  id2-- B -->id5
-  style id4 stroke-dasharray: 5 5
-  id4[index 1]
-  style id5 stroke-dasharray: 5 5
-  id5[index 2]
-  style id3 stroke-dasharray: 5 5,stroke-width: 4px
-  id3(I)
-  id3-. i2 .->id0
-  id3-- A -->id6
-  id3-- B -->id7
-  style id6 stroke-dasharray: 5 5
-  id6[index 3]
-  style id7 stroke-dasharray: 5 5
-  id7[index 4]
-```
-
-```java
-I r1 = r0.i1();
-if r1 instanceof A {
-  A r2 = (A) r1;
-  I r3 = r0.i2();
-  if r3 instanceof A {
-    A r4 = (A) r3;
-    call 1(r2, r4);
-    return;
-  }
-  requireNonNull(r3);  // null is a remainder
-  B r4 = (B) r3;    // catch(CCE) -> ICCE
-  call 2(r2, r4);
-  return;
-}
-requireNonNull(r1);  // null is a remainder
-B r2 = (B) r1;    // catch(CCE) -> ICCE
-I r3 = r0.i2();
-if r3 instanceof A {
-  A r4 = (A) r3;
-  call 3(r2, r4);
-  return;
-}
-requireNonNull(r3);  // null is a remainder
-B r4 = (B) r3;    // catch(CCE) -> ICCE
-call 4(r2, r4);
-return;
-```
-
-
-## Case 4
-
-```java
-sealed interface I {
-  record A(int x) implements I {}
-  record B(int y) implements I {}
-}
-record Foo(I i1, I i2) {}
-
-Foo foo = ...
-switch(foo) {
-  case Foo(A(int x), A(int x2))) -> 1
-  case Foo(A(int x), B(int y)) -> 2
-  case Foo(B(int y), A(int x)) -> 3
-  case Foo(B(int y), B(int y2)) -> 4
-}
-```
-
-```mermaid         
-flowchart LR
-  id0(Foo)
-  id0-- Foo -->id1
-  style id1 stroke-width: 4px
-  id1(I)
-  id1-. i1 .->id0
-  id1-- A -->id2
-  id1-- B -->id3
-  id2(int)
-  id2-. x .->id1
-  id2-- int -->id4
-  style id4 stroke-dasharray: 5 5,stroke-width: 4px
-  id4(I)
-  id4-. i2 .->id0
-  id4-- A -->id5
-  id4-- B -->id6
-  id5(int)
-  id5-. x .->id4
-  id5-- int -->id7
-  style id7 stroke-dasharray: 5 5
-  id7[index 1]
-  id6(int)
-  id6-. y .->id4
-  id6-- int -->id8
-  style id8 stroke-dasharray: 5 5
-  id8[index 2]
-  id3(int)
-  id3-. y .->id1
-  id3-- int -->id9
-  style id9 stroke-dasharray: 5 5,stroke-width: 4px
-  id9(I)
-  id9-. i2 .->id0
-  id9-- A -->id10
-  id9-- B -->id11
-  id10(int)
-  id10-. x .->id9
-  id10-- int -->id12
-  style id12 stroke-dasharray: 5 5
-  id12[index 3]
-  id11(int)
-  id11-. y .->id9
-  id11-- int -->id13
-  style id13 stroke-dasharray: 5 5
-  id13[index 4]
-```
-
-```java
-I r1 = r0.i1();
-if r1 instanceof A {
-  A r2 = (A) r1;
-  int r3 = r2.x();
-  I r4 = r0.i2();
-  if r4 instanceof A {
-    A r5 = (A) r4;
-    int r6 = r5.x();
-    call 1(r3, r6);
-    return;
-  }
-  // implicit null check of r4
-  B r5 = (B) r4;    // catch(CCE) -> ICCE
-  int r6 = r5.y();
-  call 2(r3, r6);
-  return;
-}
-// implicit null check of r1
-B r2 = (B) r1;    // catch(CCE) -> ICCE
-int r3 = r2.y();
-I r4 = r0.i2();
-if r4 instanceof A {
-  A r5 = (A) r4;
-  int r6 = r5.x();
-  call 3(r3, r6);
-  return;
-}
-// implicit null check of r4
-B r5 = (B) r4;    // catch(CCE) -> ICCE
-int r6 = r5.y();
-call 4(r3, r6);
-return;
-```
 
 
 
