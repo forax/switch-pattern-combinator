@@ -28,10 +28,14 @@ public final class PatternTrees {
   }
 
   public static final class Node {
+    private static final class NullWitness {
+      private NullWitness() { throw new AssertionError(); }
+    }
+
     static final int UNINITIALIZED = Integer.MIN_VALUE;
 
     final Class<?> targetClass;
-    boolean isRecord;
+    private boolean isRecord;
     final LinkedHashMap<Class<?>, Node> map = new LinkedHashMap<>();
     final RecordComponent component;
 
@@ -67,12 +71,13 @@ public final class PatternTrees {
 
     public Node insert(Pattern pattern, List<Node> bindingNodes) {
       requireNonNull(pattern);
+      requireNonNull(bindingNodes);
       return switch (pattern) {
         case ParenthesizedPattern parenthesizedPattern -> insert(parenthesizedPattern.pattern(), bindingNodes);
         case TypePattern typePattern -> {
           var type = typePattern.type();
           var node = map.get(type);
-          var nodeType = (node != null && node.isRecord)? null: type;
+          var nodeType = (node != null && node.isRecord)? NullWitness.class: type;
           yield map.computeIfAbsent(nodeType, __ -> new Node(type, null, null))
               .addToBindingNodes(bindingNodes, !typePattern.identifier().equals("_"));
         }
@@ -143,7 +148,7 @@ public final class PatternTrees {
             }
             yield child;
           }
-          case null, Class<?> type -> {
+          case Class<?> type -> {
             var child = node.map.get(type);
             if (child == null) {
               throw new IllegalArgumentException("null child for type " + type.getName());
@@ -157,7 +162,7 @@ public final class PatternTrees {
     }
 
     private static String simpleName(Class<?> clazz) {
-      if (clazz == null) {
+      if (clazz == NullWitness.class) {
         return "null";
       }
       var name = clazz.getName();
@@ -218,7 +223,7 @@ public final class PatternTrees {
 
         var typename = simpleName(type);
         if (!iterator.hasNext()) { // last node
-          if (type == targetClass || type == null) {
+          if (type == targetClass || type == NullWitness.class) {
             // do nothing
             scope.set(this, varnum);
             nextNode.toCode(builder, depth, varnum, scope);
@@ -242,7 +247,7 @@ public final class PatternTrees {
             continue;
           }
         }
-        if (type == null) {
+        if (type == NullWitness.class) {
           var targetClassName = simpleName(nextNode.targetClass);
           builder.append("""
                 if %s == null {
